@@ -74,9 +74,9 @@ func (m Model) renderList() string {
 		b.WriteString(successStyle.Render(fmt.Sprintf(" ✓ %s ", m.message)))
 	}
 
-	// Footer with shortcuts
+	// Footer with shortcuts - main actions
 	b.WriteString("\n")
-	footer := m.buildFooter([]footerItem{
+	footer1 := m.buildFooter([]footerItem{
 		{"a", "add"},
 		{"e", "edit"},
 		{"space", "cycle status"},
@@ -84,14 +84,24 @@ func (m Model) renderList() string {
 		{"sp", "sort priority"},
 		{"sd", "sort date"},
 		{"t", "filter"},
-		{"?", "help"},
-		{"q", "quit"},
 	})
 	footerStyleWithWidth := footerStyle
 	if m.width > 0 {
 		footerStyleWithWidth = footerStyleWithWidth.Width(m.width - 4)
 	}
-	b.WriteString(footerStyleWithWidth.Render(footer))
+	b.WriteString(footerStyleWithWidth.Render(footer1))
+
+	// Footer second line - help and quit
+	b.WriteString("\n")
+	footer2 := m.buildFooter([]footerItem{
+		{"?", "help"},
+		{"q", "quit"},
+	})
+	footerStyle2 := footerStyle.BorderTop(false).PaddingTop(0).MarginTop(0)
+	if m.width > 0 {
+		footerStyle2 = footerStyle2.Width(m.width - 4)
+	}
+	b.WriteString(footerStyle2.Render(footer2))
 
 	return b.String()
 }
