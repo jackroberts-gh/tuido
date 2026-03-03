@@ -37,10 +37,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleListMode(msg)
 	case modeAdd:
 		return m.handleAddMode(msg)
-	case modeEditPriority:
-		return m.handlePriorityMode(msg)
-	case modeEditDueDate:
-		return m.handleDueDateMode(msg)
 	case modeHelp:
 		return m.handleHelpMode(msg)
 	}
@@ -55,7 +51,50 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	visibleTasks := m.getVisibleTasks()
 	maxCursor := len(visibleTasks) - 1
 
-	switch msg.String() {
+	key := msg.String()
+
+	// Handle two-key sequences like "sd" and "sp"
+	if m.lastKey == "s" {
+		switch key {
+		case "d":
+			// Cycle through due date sort: none -> ascending -> descending -> none
+			switch m.sortBy {
+			case sortNone:
+				m.sortBy = sortDueDate
+			case sortDueDate:
+				m.sortBy = sortDueDateReverse
+			case sortDueDateReverse:
+				m.sortBy = sortNone
+			default:
+				// If in priority sort, switch to due date
+				m.sortBy = sortDueDate
+			}
+			m.cursor = 0
+			m.lastKey = ""
+			return m, nil
+		case "p":
+			// Cycle through priority sort: none -> high-to-low -> low-to-high -> none
+			switch m.sortBy {
+			case sortNone:
+				m.sortBy = sortPriority
+			case sortPriority:
+				m.sortBy = sortPriorityReverse
+			case sortPriorityReverse:
+				m.sortBy = sortNone
+			default:
+				// If in due date sort, switch to priority
+				m.sortBy = sortPriority
+			}
+			m.cursor = 0
+			m.lastKey = ""
+			return m, nil
+		default:
+			// Invalid sequence, clear lastKey
+			m.lastKey = ""
+		}
+	}
+
+	switch key {
 	case "q":
 		return m, tea.Quit
 
@@ -63,11 +102,13 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.lastKey = ""
 
 	case "down", "j":
 		if maxCursor >= 0 && m.cursor < maxCursor {
 			m.cursor++
 		}
+		m.lastKey = ""
 
 	case " ":
 		// Toggle completion
@@ -76,6 +117,7 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.taskList.Toggle(task.ID)
 			m.saveToStorage()
 		}
+		m.lastKey = ""
 
 	case "a":
 		// Enter add mode
@@ -86,9 +128,12 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addPriority = model.PriorityLow
 		m.addDueSelection = 0
 		m.clearMessages()
+		m.lastKey = ""
 
 	case "d":
-		// Delete task
+		// Check if this is the start of "sd" sequence or just delete
+		// If lastKey is empty and we're pressing "d", it could be either
+		// We'll treat standalone "d" as delete, and "sd" requires "s" first
 		task := m.getCurrentTask()
 		if task != nil {
 			m.taskList.Remove(task.ID)
@@ -100,36 +145,27 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		}
+		m.lastKey = ""
 
-	case "p":
-		// Enter priority edit mode
-		task := m.getCurrentTask()
-		if task != nil {
-			m.mode = modeEditPriority
-			m.selectedID = task.ID
-			m.clearMessages()
-		}
-
-	case "e":
-		// Enter due date edit mode
-		task := m.getCurrentTask()
-		if task != nil {
-			m.mode = modeEditDueDate
-			m.selectedID = task.ID
-			m.input = ""
-			m.clearMessages()
-		}
+	case "s":
+		// Start sort sequence - wait for next key
+		m.lastKey = "s"
 
 	case "t":
 		// Toggle show completed
 		m.showCompleted = !m.showCompleted
 		// Reset cursor to 0 to avoid out of bounds
 		m.cursor = 0
+		m.lastKey = ""
 
 	case "?":
 		// Show help
 		m.mode = modeHelp
 		m.clearMessages()
+		m.lastKey = ""
+
+	default:
+		m.lastKey = ""
 	}
 
 	return m, nil
@@ -290,91 +326,6 @@ func (m Model) calculateDueDateFromSelection() *time.Time {
 	}
 
 	return &result
-}
-
-// handlePriorityMode handles keyboard input in priority selection mode
-func (m Model) handlePriorityMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		// Cancel priority change
-		m.mode = modeList
-		m.selectedID = ""
-		m.clearMessages()
-
-	case "1":
-		// Set low priority
-		if m.taskList.UpdatePriority(m.selectedID, model.PriorityLow) {
-			m.saveToStorage()
-		}
-		m.mode = modeList
-		m.selectedID = ""
-
-	case "2":
-		// Set medium priority
-		if m.taskList.UpdatePriority(m.selectedID, model.PriorityMedium) {
-			m.saveToStorage()
-		}
-		m.mode = modeList
-		m.selectedID = ""
-
-	case "3":
-		// Set high priority
-		if m.taskList.UpdatePriority(m.selectedID, model.PriorityHigh) {
-			m.saveToStorage()
-		}
-		m.mode = modeList
-		m.selectedID = ""
-	}
-
-	return m, nil
-}
-
-// handleDueDateMode handles keyboard input in due date edit mode
-func (m Model) handleDueDateMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		// Cancel due date edit
-		m.mode = modeList
-		m.selectedID = ""
-		m.input = ""
-		m.clearMessages()
-
-	case "enter":
-		// Parse and set due date
-		if strings.TrimSpace(m.input) == "" {
-			// Empty input means remove due date
-			m.taskList.UpdateDueDate(m.selectedID, nil)
-			m.saveToStorage()
-			m.mode = modeList
-			m.selectedID = ""
-			m.input = ""
-		} else {
-			dueDate, err := parseDueDate(m.input)
-			if err != nil {
-				m.err = err
-			} else {
-				m.taskList.UpdateDueDate(m.selectedID, dueDate)
-				m.saveToStorage()
-				m.mode = modeList
-				m.selectedID = ""
-				m.input = ""
-			}
-		}
-
-	case "backspace":
-		// Remove last character
-		if len(m.input) > 0 {
-			m.input = m.input[:len(m.input)-1]
-		}
-
-	default:
-		// Add character to input
-		if len(msg.String()) == 1 {
-			m.input += msg.String()
-		}
-	}
-
-	return m, nil
 }
 
 // handleHelpMode handles keyboard input in help mode

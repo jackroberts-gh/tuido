@@ -109,6 +109,14 @@ var (
 			Padding(0, 1).
 			MarginBottom(1)
 
+	// Table header style
+	tableHeaderStyle = lipgloss.NewStyle().
+				Foreground(accent).
+				Bold(true).
+				PaddingLeft(1).
+				PaddingBottom(0).
+				MarginBottom(0)
+
 	// Task item styles
 	taskStyle = lipgloss.NewStyle().
 			PaddingLeft(1)
@@ -138,12 +146,10 @@ var (
 
 	// Priority badge styles
 	priorityHighStyle = lipgloss.NewStyle().
-				Foreground(priorityHigh).
-				Bold(true)
+				Foreground(priorityHigh)
 
 	priorityMediumStyle = lipgloss.NewStyle().
-				Foreground(priorityMedium).
-				Bold(true)
+				Foreground(priorityMedium)
 
 	priorityLowStyle = lipgloss.NewStyle().
 				Foreground(priorityLow)

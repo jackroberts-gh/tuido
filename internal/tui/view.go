@@ -3,7 +3,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
 
@@ -14,10 +16,6 @@ func (m Model) View() string {
 		return m.renderList()
 	case modeAdd:
 		return m.renderAddTask()
-	case modeEditPriority:
-		return m.renderPrioritySelector()
-	case modeEditDueDate:
-		return m.renderDueDateInput()
 	case modeHelp:
 		return m.renderHelp()
 	default:
@@ -41,11 +39,15 @@ func (m Model) renderList() string {
 		b.WriteString(listStyle.Render(emptyStateStyle.Render(emptyMsg)))
 	} else {
 		taskContent := strings.Builder{}
+
+		// Render table header
+		taskContent.WriteString(m.renderTableHeader())
+		taskContent.WriteString(m.renderHeaderSeparator())
+
+		// Render tasks as table rows
 		for i, task := range visibleTasks {
+			taskContent.WriteString("\n")
 			taskContent.WriteString(m.renderTask(task, i == m.cursor))
-			if i < len(visibleTasks)-1 {
-				taskContent.WriteString("\n")
-			}
 		}
 		b.WriteString(listStyle.Render(taskContent.String()))
 	}
@@ -66,8 +68,8 @@ func (m Model) renderList() string {
 		{"a", "add"},
 		{"space", "toggle"},
 		{"d", "delete"},
-		{"p", "priority"},
-		{"e", "date"},
+		{"sp", "sort priority"},
+		{"sd", "sort date"},
 		{"t", "filter"},
 		{"?", "help"},
 		{"q", "quit"},
@@ -94,7 +96,64 @@ func (m Model) buildFooter(items []footerItem) string {
 	return strings.Join(parts, footerSepStyle.Render(" • "))
 }
 
-// renderTask renders a single task
+// renderTableHeader renders the table header
+func (m Model) renderTableHeader() string {
+	// Calculate column widths
+	taskWidth := m.getTaskColumnWidth()
+	priorityWidth := 10
+	dueDateWidth := 12
+
+	// Build header with proper spacing
+	// Account for: cursor(1) + space(1) = 2 chars before checkbox/Task header
+	// Task column includes checkbox(3) + space(1) + text = taskWidth
+
+	// Build the full header string first, then apply styling
+	header := fmt.Sprintf("  %-*s  %-*s  %-*s",
+		taskWidth, "Task",
+		priorityWidth, "Priority",
+		dueDateWidth, "Due Date")
+
+	// Use muted text color for the entire header (so Due Date isn't in accent color)
+	headerStyle := lipgloss.NewStyle().
+		Foreground(textMuted).
+		Bold(true).
+		PaddingLeft(1)
+
+	return headerStyle.Render(header)
+}
+
+// renderHeaderSeparator renders a line separator below the header
+func (m Model) renderHeaderSeparator() string {
+	// Calculate total width for separator line
+	taskWidth := m.getTaskColumnWidth()
+	totalWidth := 2 + taskWidth + 2 + 10 + 2 + 12 // spacing included
+
+	separator := strings.Repeat("─", totalWidth)
+
+	separatorStyle := lipgloss.NewStyle().
+		Foreground(border).
+		PaddingLeft(1)
+
+	return separatorStyle.Render(separator)
+}
+
+// getTaskColumnWidth calculates the width for the task column based on terminal width
+func (m Model) getTaskColumnWidth() int {
+	if m.width > 0 {
+		// Reserve space for borders, padding, priority and due date columns
+		// Border + padding = ~10, Priority = 10, Due Date = 12, spacing = 4
+		reserved := 36
+		taskWidth := m.width - reserved
+		if taskWidth < 20 {
+			taskWidth = 20 // Minimum task column width
+		}
+		// No maximum limit - let it grow with terminal width
+		return taskWidth
+	}
+	return 40 // Default width
+}
+
+// renderTask renders a single task as a table row
 func (m Model) renderTask(task model.Task, selected bool) string {
 	// Cursor indicator
 	cursor := " "
@@ -112,26 +171,135 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 		checkbox = checkboxStyle.Render("[ ]")
 	}
 
-	// Task text
-	var taskText string
+	// Task text (truncate if too long)
+	taskWidth := m.getTaskColumnWidth()
+	taskText := task.Text
+	if len(taskText) > taskWidth-4 { // Reserve space for checkbox
+		taskText = taskText[:taskWidth-7] + "..."
+	}
+
+	// Pad task text BEFORE styling to ensure proper alignment
+	taskDisplayWidth := taskWidth - 4 // Account for checkbox
+	taskText = fmt.Sprintf("%-*s", taskDisplayWidth, taskText)
+
+	var styledTaskText string
 	if task.Completed {
-		taskText = completedTaskStyle.Render(task.Text)
+		styledTaskText = completedTaskStyle.Render(taskText)
 	} else {
 		if selected {
-			taskText = checkboxSelectedStyle.Render(task.Text)
+			styledTaskText = checkboxSelectedStyle.Render(taskText)
 		} else {
-			taskText = taskTextStyle.Render(task.Text)
+			styledTaskText = taskTextStyle.Render(taskText)
 		}
 	}
 
-	// Build the line
-	line := fmt.Sprintf("%s %s %s", cursor, checkbox, taskText)
+	// Priority - pad before styling
+	priorityText := ""
+	switch task.Priority {
+	case model.PriorityLow:
+		priorityText = "low"
+	case model.PriorityMedium:
+		priorityText = "medium"
+	case model.PriorityHigh:
+		priorityText = "high"
+	}
+	priorityText = fmt.Sprintf("%-10s", priorityText)
+	priority := m.formatPriority(task.Priority, priorityText, task.Completed)
+
+	// Due date - pad before styling
+	dueDateText := m.getDueDateText(&task)
+	dueDateText = fmt.Sprintf("%-12s", dueDateText)
+	dueDate := m.formatDueDateStyled(&task, dueDateText, task.Completed)
+
+	// Build the line with properly aligned columns
+	line := fmt.Sprintf("%s %s %s  %s  %s",
+		cursor,
+		checkbox,
+		styledTaskText,
+		priority,
+		dueDate)
 
 	// Apply padding
 	if selected {
 		return selectedTaskStyle.Render(line)
 	}
 	return taskStyle.Render(line)
+}
+
+// formatPriority formats the priority with appropriate styling (text is already padded)
+func (m Model) formatPriority(priority model.Priority, paddedText string, completed bool) string {
+	var style lipgloss.Style
+
+	switch priority {
+	case model.PriorityLow:
+		style = priorityLowStyle
+	case model.PriorityMedium:
+		style = priorityMediumStyle
+	case model.PriorityHigh:
+		style = priorityHighStyle
+	default:
+		style = lipgloss.NewStyle()
+	}
+
+	// Apply strikethrough if completed
+	if completed {
+		style = style.Strikethrough(true).Foreground(textDim)
+	}
+
+	return style.Render(paddedText)
+}
+
+// getDueDateText returns the plain text for due date
+func (m Model) getDueDateText(task *model.Task) string {
+	if task.DueDate == nil {
+		return "-"
+	}
+
+	// Calculate days until due
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	dueDay := time.Date(task.DueDate.Year(), task.DueDate.Month(), task.DueDate.Day(), 0, 0, 0, 0, task.DueDate.Location())
+
+	daysDiff := int(dueDay.Sub(today).Hours() / 24)
+
+	// Return relative label based on days difference
+	switch {
+	case daysDiff == 0:
+		return "today"
+	case daysDiff == 1:
+		return "tomorrow"
+	case daysDiff >= 2 && daysDiff <= 7:
+		return "this week"
+	case daysDiff >= 8 && daysDiff <= 14:
+		return "next week"
+	case daysDiff < 0:
+		// Overdue - show how many days ago
+		if daysDiff == -1 {
+			return "yesterday"
+		}
+		return fmt.Sprintf("%d days ago", -daysDiff)
+	default:
+		// Future date beyond 2 weeks - show actual date
+		return task.DueDate.Format("Jan 2")
+	}
+}
+
+// formatDueDateStyled formats the due date with styling (text is already padded)
+func (m Model) formatDueDateStyled(task *model.Task, paddedText string, completed bool) string {
+	var style lipgloss.Style
+
+	if completed {
+		// If completed, apply strikethrough and dim styling regardless of due date
+		style = lipgloss.NewStyle().Foreground(textDim).Strikethrough(true)
+	} else if task.DueDate == nil {
+		// No due date - use dim style
+		style = lipgloss.NewStyle().Foreground(textDim)
+	} else {
+		// Has a due date but not completed - use plain text (no color)
+		style = lipgloss.NewStyle().Foreground(text)
+	}
+
+	return style.Render(paddedText)
 }
 
 // renderAddTask renders the add task input view
@@ -306,54 +474,6 @@ func (m Model) renderDueList(index int) string {
 	return fmt.Sprintf("  %s %s", cursor, styledLabel)
 }
 
-// renderPrioritySelector renders the priority selection view
-func (m Model) renderPrioritySelector() string {
-	var dialog strings.Builder
-
-	dialog.WriteString(dialogTitleStyle.Render("Select Priority"))
-	dialog.WriteString("\n\n")
-
-	dialog.WriteString(priorityLowStyle.Render("  1 ● Low"))
-	dialog.WriteString("\n\n")
-	dialog.WriteString(priorityMediumStyle.Render("  2 ● Medium"))
-	dialog.WriteString("\n\n")
-	dialog.WriteString(priorityHighStyle.Render("  3 ● High"))
-	dialog.WriteString("\n\n")
-
-	dialog.WriteString(hintStyle.Render("Press 1, 2, or 3 • Esc to cancel"))
-
-	boxStyle := dialogBoxStyle
-	if m.width > 0 {
-		boxStyle = boxStyle.MaxWidth(m.width - 4)
-	}
-	return boxStyle.Render(dialog.String())
-}
-
-// renderDueDateInput renders the due date input view
-func (m Model) renderDueDateInput() string {
-	var dialog strings.Builder
-
-	dialog.WriteString(dialogTitleStyle.Render("Set Due Date"))
-	dialog.WriteString("\n\n")
-
-	dialog.WriteString(promptStyle.Render("Due date:"))
-	dialog.WriteString("\n")
-
-	inputText := m.input + "█"
-	dialog.WriteString(inputBoxStyle.Render(inputText))
-	dialog.WriteString("\n\n")
-
-	dialog.WriteString(hintStyle.Render("Examples: tomorrow, 3d, 1w, 2026-03-15"))
-	dialog.WriteString("\n")
-	dialog.WriteString(hintStyle.Render("↵ Enter to set • Esc to cancel • Empty to clear"))
-
-	boxStyle := dialogBoxStyle
-	if m.width > 0 {
-		boxStyle = boxStyle.MaxWidth(m.width - 4)
-	}
-	return boxStyle.Render(dialog.String())
-}
-
 // renderHelp renders the help screen
 func (m Model) renderHelp() string {
 	var help strings.Builder
@@ -370,8 +490,8 @@ func (m Model) renderHelp() string {
 		{"space", "Toggle task completion"},
 		{"a", "Add new task"},
 		{"d", "Delete selected task"},
-		{"p", "Change priority"},
-		{"e", "Edit due date"},
+		{"sp", "Sort by priority"},
+		{"sd", "Sort by due date"},
 		{"t", "Toggle completed tasks visibility"},
 		{"?", "Show this help"},
 		{"q / Ctrl+C", "Quit application"},
