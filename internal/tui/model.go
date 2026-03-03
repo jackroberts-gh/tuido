@@ -19,9 +19,10 @@ type saveMsg struct{}
 type viewMode int
 
 const (
-	modeList viewMode = iota // Main task list view
-	modeAdd                  // Adding new task
-	modeHelp                 // Help screen
+	modeList   viewMode = iota // Main task list view
+	modeAdd                    // Adding new task
+	modeHelp                   // Help screen
+	modeDelete                 // Delete confirmation dialog
 )
 
 // sortMode represents how tasks are sorted
@@ -51,6 +52,8 @@ type Model struct {
 	lastKey       string        // Last key pressed (for key sequences like "sd", "sp")
 	spinner       spinner.Model // Spinner for in-progress tasks
 	savePending   bool          // Whether a save is scheduled but not yet executed
+	// Delete confirmation
+	deleteTaskID string // ID of task to delete (when in modeDelete)
 	// Add task form fields
 	addField        int            // Current field in add mode (0=task, 1=priority, 2=due)
 	addCursor       int            // Cursor position within priority/due lists

@@ -47,6 +47,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleAddMode(msg)
 	case modeHelp:
 		return m.handleHelpMode()
+	case modeDelete:
+		return m.handleDeleteMode(msg)
 	}
 
 	return m, nil
@@ -167,20 +169,12 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lastKey = ""
 
 	case "d":
-		// Check if this is the start of "sd" sequence or just delete
-		// If lastKey is empty and we're pressing "d", it could be either
-		// We'll treat standalone "d" as delete, and "sd" requires "s" first
+		// Show delete confirmation dialog
 		task := m.getCurrentTask()
 		if task != nil {
-			m.taskList.Remove(task.ID)
-
-			// Adjust cursor if needed
-			visibleTasks = m.getVisibleTasks()
-			if m.cursor >= len(visibleTasks) && m.cursor > 0 {
-				m.cursor--
-			}
-			m.lastKey = ""
-			return m, m.scheduleSave()
+			m.deleteTaskID = task.ID
+			m.mode = modeDelete
+			m.clearMessages()
 		}
 		m.lastKey = ""
 
@@ -431,4 +425,36 @@ func (m Model) handleHelpMode() (tea.Model, tea.Cmd) {
 	// Any key returns to list mode
 	m.mode = modeList
 	return m, nil
+}
+
+// handleDeleteMode handles keyboard input in delete confirmation mode
+func (m Model) handleDeleteMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "Y":
+		// Confirm deletion
+		m.taskList.Remove(m.deleteTaskID)
+
+		// Adjust cursor if needed
+		visibleTasks := m.getVisibleTasks()
+		if m.cursor >= len(visibleTasks) && m.cursor > 0 {
+			m.cursor--
+		}
+
+		// Return to list mode
+		m.mode = modeList
+		m.deleteTaskID = ""
+		return m, m.scheduleSave()
+
+	case "n", "N", "esc":
+		// Cancel deletion
+		m.mode = modeList
+		m.deleteTaskID = ""
+		return m, nil
+
+	default:
+		// Any other key cancels
+		m.mode = modeList
+		m.deleteTaskID = ""
+		return m, nil
+	}
 }
