@@ -87,6 +87,18 @@ func (m Model) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 
+// StartInAddMode configures the model to start in add task mode
+func (m Model) StartInAddMode() Model {
+	m.mode = modeAdd
+	m.input = ""
+	m.addField = 0
+	m.addCursor = 0
+	m.addPriority = model.PriorityLow
+	m.addDueSelection = 0
+	m.editTaskID = ""
+	return m
+}
+
 // getVisibleTasks returns the tasks that should be displayed based on showCompleted and sorting
 func (m Model) getVisibleTasks() []model.Task {
 	var tasks []model.Task

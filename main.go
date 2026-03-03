@@ -27,6 +27,11 @@ func main() {
 	// Create BubbleTea model
 	m := tui.NewModel(taskList, store)
 
+	// Check for command-line arguments
+	if len(os.Args) > 1 && os.Args[1] == "add" {
+		m = m.StartInAddMode()
+	}
+
 	// Run TUI with alternate screen buffer
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
