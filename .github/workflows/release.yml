@@ -60,7 +60,7 @@ jobs:
       - name: Create GitHub Release
         run: |
           gh release create ${{ steps.version.outputs.VERSION }} \
-            --title "Release ${{ steps.version.outputs.VERSION }}" \
+            --title "${{ steps.version.outputs.VERSION }}" \
             --generate-notes \
             dist/*
         env:
