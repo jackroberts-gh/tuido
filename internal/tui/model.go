@@ -65,7 +65,7 @@ type Model struct {
 // NewModel creates a new Model with the given task list and storage
 func NewModel(taskList *model.TaskList, storage *storage.Storage) Model {
 	s := spinner.New()
-	s.Spinner = spinner.Line
+	s.Spinner = spinner.MiniDot
 
 	return Model{
 		taskList:      taskList,
