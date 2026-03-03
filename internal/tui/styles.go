@@ -8,8 +8,8 @@ import (
 var (
 	// Primary colors
 	primary = lipgloss.AdaptiveColor{
-		Light: "#7D56F4", // Darker purple for light mode
-		Dark:  "#A78BFA", // Lighter purple for dark mode
+		Light: "#7C3AED", // Lighter purple for light mode
+		Dark:  "#F0ABFC", // Subtle pink for dark mode
 	}
 
 	// Accent colors
@@ -65,6 +65,12 @@ var (
 		Light: "#6B7280", // Dark gray border for light mode
 		Dark:  "#6B7280", // Dark gray border for dark mode
 	}
+
+	// Selection background
+	selectionBg = lipgloss.AdaptiveColor{
+		Light: "#FDF2F8", // Light pink background for light mode
+		Dark:  "#831843", // Dark pink background for dark mode
+	}
 )
 
 var (
@@ -108,8 +114,6 @@ var (
 			PaddingLeft(1)
 
 	selectedTaskStyle = lipgloss.NewStyle().
-				Foreground(primary).
-				Bold(true).
 				PaddingLeft(1).
 				PaddingRight(1)
 
@@ -118,12 +122,19 @@ var (
 			Bold(true)
 
 	checkboxStyle = lipgloss.NewStyle().
-			Foreground(accent).
-			Bold(true)
+			Foreground(text)
+
+	checkboxSelectedStyle = lipgloss.NewStyle().
+				Foreground(primary).
+				Bold(true)
+
+	checkboxSelectedCompletedStyle = lipgloss.NewStyle().
+					Foreground(primary).
+					Strikethrough(true)
 
 	checkboxCompletedStyle = lipgloss.NewStyle().
-				Foreground(success).
-				Bold(true)
+				Foreground(textDim).
+				Strikethrough(true)
 
 	// Priority badge styles
 	priorityHighStyle = lipgloss.NewStyle().

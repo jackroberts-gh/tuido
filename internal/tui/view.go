@@ -106,7 +106,9 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	// Checkbox
 	var checkbox string
 	if task.Completed {
-		checkbox = checkboxCompletedStyle.Render("[✓]")
+		checkbox = checkboxCompletedStyle.Render("[x]")
+	} else if selected {
+		checkbox = checkboxSelectedStyle.Render("[ ]")
 	} else {
 		checkbox = checkboxStyle.Render("[ ]")
 	}
@@ -116,23 +118,59 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	if task.Completed {
 		taskText = completedTaskStyle.Render(task.Text)
 	} else {
-		taskText = taskTextStyle.Render(task.Text)
+		if selected {
+			taskText = checkboxSelectedStyle.Render(task.Text)
+		} else {
+			taskText = taskTextStyle.Render(task.Text)
+		}
 	}
 
 	// Due date
 	dueDateStr := ""
 	if task.DueDate != nil {
-		dueDateStr = " " + m.formatDueDate(&task)
+		if task.Completed {
+			dueDateStr = " " + completedTaskStyle.Render(m.formatDueDateText(&task))
+		} else if selected {
+			dueDateStr = " " + checkboxSelectedStyle.Render(m.formatDueDateText(&task))
+		} else {
+			dueDateStr = " " + m.formatDueDate(&task)
+		}
 	}
 
 	// Build the line
 	line := fmt.Sprintf("%s %s %s%s", cursor, checkbox, taskText, dueDateStr)
 
-	// Apply selection highlighting
+	// Apply padding
 	if selected {
 		return selectedTaskStyle.Render(line)
 	}
 	return taskStyle.Render(line)
+}
+
+// formatDueDateText returns the due date text without styling
+func (m Model) formatDueDateText(task *model.Task) string {
+	if task.DueDate == nil {
+		return ""
+	}
+
+	now := time.Now()
+	dueDate := *task.DueDate
+
+	// Calculate difference
+	diff := dueDate.Sub(now)
+	days := int(diff.Hours() / 24)
+
+	if days < 0 {
+		return fmt.Sprintf("⚠ overdue %dd", -days)
+	} else if days == 0 {
+		return "⚠ due today"
+	} else if days == 1 {
+		return "⏰ tomorrow"
+	} else if days <= 7 {
+		return fmt.Sprintf("⏰ %dd", days)
+	} else {
+		return fmt.Sprintf("📅 %s", dueDate.Format("Jan 02"))
+	}
 }
 
 // formatDueDate formats the due date with appropriate styling
