@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,8 +26,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
-
-	return m, nil
 }
 
 // handleKeyPress routes key presses to mode-specific handlers
@@ -44,7 +41,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case modeAdd:
 		return m.handleAddMode(msg)
 	case modeHelp:
-		return m.handleHelpMode(msg)
+		return m.handleHelpMode()
 	}
 
 	return m, nil
@@ -451,76 +448,8 @@ func (m Model) calculateDueDateFromSelection() *time.Time {
 }
 
 // handleHelpMode handles keyboard input in help mode
-func (m Model) handleHelpMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleHelpMode() (tea.Model, tea.Cmd) {
 	// Any key returns to list mode
 	m.mode = modeList
 	return m, nil
-}
-
-// parseDueDate parses a due date string in various formats
-func parseDueDate(input string) (*time.Time, error) {
-	input = strings.TrimSpace(strings.ToLower(input))
-	now := time.Now()
-
-	// Relative dates (e.g., "3d", "1w", "2m")
-	if len(input) >= 2 {
-		numStr := input[:len(input)-1]
-		unit := input[len(input)-1:]
-
-		if num, err := strconv.Atoi(numStr); err == nil {
-			var duration time.Duration
-			switch unit {
-			case "d":
-				duration = time.Duration(num) * 24 * time.Hour
-			case "w":
-				duration = time.Duration(num) * 7 * 24 * time.Hour
-			case "m":
-				// Approximate month as 30 days
-				duration = time.Duration(num*30) * 24 * time.Hour
-			default:
-				goto tryOtherFormats
-			}
-			result := now.Add(duration)
-			return &result, nil
-		}
-	}
-
-tryOtherFormats:
-	// Natural language
-	switch input {
-	case "today":
-		result := now
-		return &result, nil
-	case "tomorrow":
-		result := now.Add(24 * time.Hour)
-		return &result, nil
-	case "next week":
-		result := now.Add(7 * 24 * time.Hour)
-		return &result, nil
-	}
-
-	// Absolute date formats
-	formats := []string{
-		"2006-01-02",
-		"01/02/2006",
-		"Jan 02, 2006",
-		"Jan 02",
-		"01/02",
-	}
-
-	for _, format := range formats {
-		if t, err := time.Parse(format, input); err == nil {
-			// For formats without year, use current year
-			if !strings.Contains(format, "2006") {
-				t = time.Date(now.Year(), t.Month(), t.Day(), 0, 0, 0, 0, now.Location())
-				// If the date is in the past, assume next year
-				if t.Before(now) {
-					t = t.AddDate(1, 0, 0)
-				}
-			}
-			return &t, nil
-		}
-	}
-
-	return nil, fmt.Errorf("invalid date format. Try: tomorrow, 3d, 1w, 2026-03-15")
 }
