@@ -553,8 +553,10 @@ func (m Model) renderHelp() string {
 	}
 
 	for _, shortcut := range shortcuts {
-		line := fmt.Sprintf("%-12s  %s",
-			helpKeyStyle.Render(shortcut.key),
+		// Pad the key before styling to ensure alignment
+		paddedKey := fmt.Sprintf("%-12s", shortcut.key)
+		line := fmt.Sprintf("%s  %s",
+			helpKeyStyle.Render(paddedKey),
 			helpDescStyle.Render(shortcut.desc))
 		help.WriteString(line)
 		help.WriteString("\n")
