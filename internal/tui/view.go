@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
@@ -125,20 +124,8 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 		}
 	}
 
-	// Due date
-	dueDateStr := ""
-	if task.DueDate != nil {
-		if task.Completed {
-			dueDateStr = " " + completedTaskStyle.Render(m.formatDueDateText(&task))
-		} else if selected {
-			dueDateStr = " " + checkboxSelectedStyle.Render(m.formatDueDateText(&task))
-		} else {
-			dueDateStr = " " + m.formatDueDate(&task)
-		}
-	}
-
 	// Build the line
-	line := fmt.Sprintf("%s %s %s%s", cursor, checkbox, taskText, dueDateStr)
+	line := fmt.Sprintf("%s %s %s", cursor, checkbox, taskText)
 
 	// Apply padding
 	if selected {
@@ -147,90 +134,176 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	return taskStyle.Render(line)
 }
 
-// formatDueDateText returns the due date text without styling
-func (m Model) formatDueDateText(task *model.Task) string {
-	if task.DueDate == nil {
-		return ""
-	}
-
-	now := time.Now()
-	dueDate := *task.DueDate
-
-	// Calculate difference
-	diff := dueDate.Sub(now)
-	days := int(diff.Hours() / 24)
-
-	if days < 0 {
-		return fmt.Sprintf("⚠ overdue %dd", -days)
-	} else if days == 0 {
-		return "⚠ due today"
-	} else if days == 1 {
-		return "⏰ tomorrow"
-	} else if days <= 7 {
-		return fmt.Sprintf("⏰ %dd", days)
-	} else {
-		return fmt.Sprintf("📅 %s", dueDate.Format("Jan 02"))
-	}
-}
-
-// formatDueDate formats the due date with appropriate styling
-func (m Model) formatDueDate(task *model.Task) string {
-	if task.DueDate == nil {
-		return ""
-	}
-
-	now := time.Now()
-	dueDate := *task.DueDate
-
-	// Calculate difference
-	diff := dueDate.Sub(now)
-	days := int(diff.Hours() / 24)
-
-	var dateStr string
-	if days < 0 {
-		// Overdue
-		dateStr = fmt.Sprintf("⚠ overdue %dd", -days)
-		return overdueStyle.Render(dateStr)
-	} else if days == 0 {
-		// Due today
-		dateStr = "⚠ due today"
-		return overdueStyle.Render(dateStr)
-	} else if days == 1 {
-		// Due tomorrow
-		dateStr = "⏰ tomorrow"
-		return dueSoonStyle.Render(dateStr)
-	} else if days <= 7 {
-		// Due within a week
-		dateStr = fmt.Sprintf("⏰ %dd", days)
-		return dueSoonStyle.Render(dateStr)
-	} else {
-		// Due later
-		dateStr = fmt.Sprintf("📅 %s", dueDate.Format("Jan 02"))
-		return dueDateStyle.Render(dateStr)
-	}
-}
-
 // renderAddTask renders the add task input view
 func (m Model) renderAddTask() string {
-	var dialog strings.Builder
+	var b strings.Builder
 
-	dialog.WriteString(dialogTitleStyle.Render("Add New Task"))
-	dialog.WriteString("\n\n")
+	// Content box with form
+	formContent := strings.Builder{}
 
-	dialog.WriteString(promptStyle.Render("Task description:"))
-	dialog.WriteString("\n")
-
-	inputText := m.input + "█"
-	dialog.WriteString(inputBoxStyle.Render(inputText))
-	dialog.WriteString("\n\n")
-
-	dialog.WriteString(hintStyle.Render("↵ Enter to add • Esc to cancel"))
-
-	boxStyle := dialogBoxStyle
-	if m.width > 0 {
-		boxStyle = boxStyle.MaxWidth(m.width - 4)
+	// Question 1: Task
+	questionLabel := checkboxSelectedStyle.Render("Task")
+	if m.addField != 0 {
+		questionLabel = checkboxStyle.Render("Task")
 	}
-	return boxStyle.Render(dialog.String())
+	formContent.WriteString(" ")
+	formContent.WriteString(questionLabel)
+	formContent.WriteString(": ")
+
+	if m.addField == 0 {
+		// Active input
+		formContent.WriteString(m.input)
+		formContent.WriteString("█")
+	} else {
+		// Completed
+		formContent.WriteString(taskTextStyle.Render(m.input))
+	}
+	formContent.WriteString("\n\n")
+
+	// Question 2: Priority
+	questionLabel = checkboxSelectedStyle.Render("Priority")
+	if m.addField != 1 {
+		questionLabel = checkboxStyle.Render("Priority")
+	}
+	formContent.WriteString(" ")
+	formContent.WriteString(questionLabel)
+	formContent.WriteString(":")
+
+	if m.addField >= 1 {
+		formContent.WriteString("\n")
+		if m.addField == 1 {
+			// Active selection
+			formContent.WriteString(m.renderPriorityList(0))
+			formContent.WriteString("\n")
+			formContent.WriteString(m.renderPriorityList(1))
+			formContent.WriteString("\n")
+			formContent.WriteString(m.renderPriorityList(2))
+		} else {
+			// Completed
+			formContent.WriteString("   ")
+			formContent.WriteString(m.formatPriorityAnswer(m.addPriority))
+		}
+	}
+	formContent.WriteString("\n\n")
+
+	// Question 3: Due date
+	questionLabel = checkboxSelectedStyle.Render("Due date")
+	if m.addField != 2 {
+		questionLabel = checkboxStyle.Render("Due date")
+	}
+	formContent.WriteString(" ")
+	formContent.WriteString(questionLabel)
+	formContent.WriteString(":")
+
+	if m.addField >= 2 {
+		formContent.WriteString("\n")
+		// Active selection
+		formContent.WriteString(m.renderDueList(0))
+		formContent.WriteString("\n")
+		formContent.WriteString(m.renderDueList(1))
+		formContent.WriteString("\n")
+		formContent.WriteString(m.renderDueList(2))
+		formContent.WriteString("\n")
+		formContent.WriteString(m.renderDueList(3))
+	}
+
+	// Apply box style
+	boxStyle := taskListStyle
+	if m.width > 0 {
+		boxStyle = boxStyle.Width(m.width - 6)
+	}
+	b.WriteString(boxStyle.Render(formContent.String()))
+
+	// Footer with context-sensitive shortcuts
+	b.WriteString("\n")
+	var footerItems []footerItem
+	switch m.addField {
+	case 0:
+		footerItems = []footerItem{
+			{"↵", "next"},
+			{"esc", "cancel"},
+		}
+	case 1:
+		footerItems = []footerItem{
+			{"↑↓", "navigate"},
+			{"1-3", "select"},
+			{"↵", "next"},
+			{"esc", "cancel"},
+		}
+	case 2:
+		footerItems = []footerItem{
+			{"↑↓", "navigate"},
+			{"1-4", "select & add"},
+			{"↵", "add"},
+			{"esc", "cancel"},
+		}
+	}
+
+	footer := m.buildFooter(footerItems)
+	footerStyleWithWidth := footerStyle
+	if m.width > 0 {
+		footerStyleWithWidth = footerStyleWithWidth.Width(m.width - 4)
+	}
+	b.WriteString(footerStyleWithWidth.Render(footer))
+
+	return b.String()
+}
+
+// formatPriorityAnswer formats the completed priority answer
+func (m Model) formatPriorityAnswer(priority model.Priority) string {
+	switch priority {
+	case model.PriorityLow:
+		return priorityLowStyle.Render(priority.String())
+	case model.PriorityMedium:
+		return priorityMediumStyle.Render(priority.String())
+	case model.PriorityHigh:
+		return priorityHighStyle.Render(priority.String())
+	}
+	return priority.String()
+}
+
+// renderPriorityList renders a single priority option
+func (m Model) renderPriorityList(index int) string {
+	priorities := []model.Priority{model.PriorityLow, model.PriorityMedium, model.PriorityHigh}
+	priority := priorities[index]
+
+	cursor := " "
+	if m.addCursor == index {
+		cursor = cursorStyle.Render("▶")
+	}
+
+	var style func(...string) string
+	switch priority {
+	case model.PriorityLow:
+		style = priorityLowStyle.Render
+	case model.PriorityMedium:
+		style = priorityMediumStyle.Render
+	case model.PriorityHigh:
+		style = priorityHighStyle.Render
+	}
+
+	return fmt.Sprintf("  %s %s", cursor, style(priority.String()))
+}
+
+// renderDueList renders a single due date option
+func (m Model) renderDueList(index int) string {
+	labels := []string{"Today", "Tomorrow", "This week", "Next week"}
+	label := labels[index]
+
+	cursor := " "
+	if m.addCursor == index {
+		cursor = cursorStyle.Render("▶")
+	}
+
+	// Highlight selected option in purple
+	var styledLabel string
+	if m.addCursor == index {
+		styledLabel = checkboxSelectedStyle.Render(label)
+	} else {
+		styledLabel = dueDateStyle.Render(label)
+	}
+
+	return fmt.Sprintf("  %s %s", cursor, styledLabel)
 }
 
 // renderPrioritySelector renders the priority selection view

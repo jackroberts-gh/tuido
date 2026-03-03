@@ -30,6 +30,11 @@ type Model struct {
 	showCompleted bool      // Whether to show completed tasks
 	selectedID    string    // ID of the selected task (for editing)
 	message       string    // Success/info message to display
+	// Add task form fields
+	addField        int            // Current field in add mode (0=task, 1=priority, 2=due)
+	addCursor       int            // Cursor position within priority/due lists
+	addPriority     model.Priority // Selected priority for new task
+	addDueSelection int            // Selected due date option (0=today, 1=tomorrow, 2=this week, 3=next week)
 }
 
 // NewModel creates a new Model with the given task list and storage

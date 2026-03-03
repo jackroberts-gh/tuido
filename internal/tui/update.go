@@ -81,6 +81,10 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Enter add mode
 		m.mode = modeAdd
 		m.input = ""
+		m.addField = 0
+		m.addCursor = 0 // Start at Low priority
+		m.addPriority = model.PriorityLow
+		m.addDueSelection = 0
 		m.clearMessages()
 
 	case "d":
@@ -133,38 +137,159 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleAddMode handles keyboard input in add task mode
 func (m Model) handleAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.addField {
+	case 0:
+		// Task input field
+		return m.handleAddTaskInput(msg)
+	case 1:
+		// Priority selection
+		return m.handleAddPrioritySelect(msg)
+	case 2:
+		// Due date selection
+		return m.handleAddDueSelect(msg)
+	}
+	return m, nil
+}
+
+// handleAddTaskInput handles task input in add mode
+func (m Model) handleAddTaskInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		// Cancel add
 		m.mode = modeList
 		m.input = ""
+		m.addField = 0
 		m.clearMessages()
 
 	case "enter":
-		// Add task
 		if strings.TrimSpace(m.input) != "" {
-			m.taskList.Add(m.input, model.PriorityMedium, nil)
-			m.saveToStorage()
-			m.mode = modeList
-			m.input = ""
+			m.addField = 1
+			m.addCursor = 0 // Reset cursor to Low priority
+			m.clearMessages()
 		} else {
-			m.err = fmt.Errorf("task description cannot be empty")
+			m.err = fmt.Errorf("task cannot be empty")
 		}
 
 	case "backspace":
-		// Remove last character
 		if len(m.input) > 0 {
 			m.input = m.input[:len(m.input)-1]
 		}
 
 	default:
-		// Add character to input
 		if len(msg.String()) == 1 {
 			m.input += msg.String()
 		}
 	}
-
 	return m, nil
+}
+
+// handleAddPrioritySelect handles priority selection in add mode
+func (m Model) handleAddPrioritySelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeList
+		m.input = ""
+		m.addField = 0
+		m.clearMessages()
+
+	case "up", "k":
+		if m.addCursor > 0 {
+			m.addCursor--
+		}
+
+	case "down", "j":
+		if m.addCursor < 2 {
+			m.addCursor++
+		}
+
+	case "enter":
+		// Update priority based on cursor position
+		switch m.addCursor {
+		case 0:
+			m.addPriority = model.PriorityLow
+		case 1:
+			m.addPriority = model.PriorityMedium
+		case 2:
+			m.addPriority = model.PriorityHigh
+		}
+		m.addField = 2
+		m.addCursor = 0 // Reset cursor to Today
+
+	case "1":
+		m.addPriority = model.PriorityLow
+		m.addField = 2
+		m.addCursor = 0
+
+	case "2":
+		m.addPriority = model.PriorityMedium
+		m.addField = 2
+		m.addCursor = 0
+
+	case "3":
+		m.addPriority = model.PriorityHigh
+		m.addField = 2
+		m.addCursor = 0
+	}
+	return m, nil
+}
+
+// handleAddDueSelect handles due date selection in add mode
+func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeList
+		m.input = ""
+		m.addField = 0
+		m.clearMessages()
+
+	case "up", "k":
+		if m.addCursor > 0 {
+			m.addCursor--
+		}
+
+	case "down", "j":
+		if m.addCursor < 3 {
+			m.addCursor++
+		}
+
+	case "enter":
+		m.addDueSelection = m.addCursor
+		m.addTask()
+
+	case "1", "2", "3", "4":
+		m.addDueSelection = int(msg.String()[0] - '1')
+		m.addTask()
+	}
+	return m, nil
+}
+
+// addTask completes the add flow and creates the task
+func (m *Model) addTask() {
+	dueDate := m.calculateDueDateFromSelection()
+	m.taskList.Add(m.input, m.addPriority, dueDate)
+	m.saveToStorage()
+	m.mode = modeList
+	m.input = ""
+	m.addField = 0
+	m.addCursor = 0
+}
+
+// calculateDueDateFromSelection calculates the due date based on the selection
+func (m Model) calculateDueDateFromSelection() *time.Time {
+	now := time.Now()
+	var result time.Time
+
+	switch m.addDueSelection {
+	case 0: // Today
+		result = now
+	case 1: // Tomorrow
+		result = now.Add(24 * time.Hour)
+	case 2: // This week (7 days)
+		result = now.Add(7 * 24 * time.Hour)
+	case 3: // Next week (14 days)
+		result = now.Add(14 * 24 * time.Hour)
+	}
+
+	return &result
 }
 
 // handlePriorityMode handles keyboard input in priority selection mode
