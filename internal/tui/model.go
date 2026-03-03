@@ -44,7 +44,7 @@ type Model struct {
 	addField        int            // Current field in add mode (0=task, 1=priority, 2=due)
 	addCursor       int            // Cursor position within priority/due lists
 	addPriority     model.Priority // Selected priority for new task
-	addDueSelection int            // Selected due date option (0=today, 1=tomorrow, 2=this week, 3=next week)
+	addDueSelection int // Selected due date option (0=today, 1=tomorrow, 2=this week, 3=next week)
 }
 
 // NewModel creates a new Model with the given task list and storage

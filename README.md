@@ -41,6 +41,8 @@ Or if installed:
 tuido
 ```
 
+**Note:** Tuido uses adaptive colors that adjust to your system theme (light/dark mode). If you switch themes while the app is running, restart it to see the updated colors.
+
 ## Keyboard Shortcuts
 
 ### Navigation

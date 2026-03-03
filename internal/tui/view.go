@@ -96,7 +96,7 @@ type footerItem struct {
 func (m Model) buildFooter(items []footerItem) string {
 	parts := make([]string, len(items))
 	for i, item := range items {
-		parts[i] = fmt.Sprintf("%s %s", footerKeyStyle.Render(item.key), item.desc)
+		parts[i] = fmt.Sprintf("%s %s", footerKeyStyle.Render(item.key), footerDescStyle.Render(item.desc))
 	}
 	return strings.Join(parts, footerSepStyle.Render(" • "))
 }

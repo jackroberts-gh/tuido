@@ -241,12 +241,19 @@ var (
 			BorderForeground(border).
 			BorderTop(true).
 			PaddingTop(1).
-			MarginTop(1)
+			PaddingLeft(1).
+			MarginTop(1).
+			MarginLeft(1)
 
 	footerKeyStyle = lipgloss.NewStyle().
 			Foreground(accent).
 			Bold(true)
 
+	footerDescStyle = lipgloss.NewStyle().
+			Foreground(textMuted).
+			Faint(true)
+
 	footerSepStyle = lipgloss.NewStyle().
-			Foreground(textDim)
+			Foreground(textDim).
+			Faint(true)
 )
