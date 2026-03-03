@@ -2,12 +2,18 @@ package tui
 
 import (
 	"sort"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jackroberts-gh/tuido/internal/model"
 	"github.com/jackroberts-gh/tuido/internal/storage"
 )
+
+const saveDebounceDuration = 500 * time.Millisecond
+
+// saveMsg is sent when the debounced save timer expires
+type saveMsg struct{}
 
 // viewMode represents the current view/mode of the application
 type viewMode int
@@ -44,6 +50,7 @@ type Model struct {
 	sortBy        sortMode      // Current sort mode
 	lastKey       string        // Last key pressed (for key sequences like "sd", "sp")
 	spinner       spinner.Model // Spinner for in-progress tasks
+	savePending   bool          // Whether a save is scheduled but not yet executed
 	// Add task form fields
 	addField        int            // Current field in add mode (0=task, 1=priority, 2=due)
 	addCursor       int            // Cursor position within priority/due lists
@@ -175,8 +182,17 @@ func (m Model) getCurrentTask() *model.Task {
 	return m.taskList.GetByID(taskID)
 }
 
-// saveToStorage saves the task list to storage and handles errors
-func (m *Model) saveToStorage() {
+// scheduleSave returns a command that will trigger a save after a debounce delay
+func (m *Model) scheduleSave() tea.Cmd {
+	m.savePending = true
+	return tea.Tick(saveDebounceDuration, func(t time.Time) tea.Msg {
+		return saveMsg{}
+	})
+}
+
+// performSave executes the actual save to storage
+func (m *Model) performSave() {
+	m.savePending = false
 	if err := m.storage.Save(m.taskList); err != nil {
 		m.err = err
 	}

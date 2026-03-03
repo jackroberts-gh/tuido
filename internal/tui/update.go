@@ -17,6 +17,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, tea.ClearScreen
 
+	case saveMsg:
+		// Perform the actual save to storage
+		m.performSave()
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
 
@@ -123,9 +128,8 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					for i, t := range visibleTasks {
 						if t.ID == nextTaskID {
 							m.cursor = i
-							m.saveToStorage()
 							m.lastKey = ""
-							return m, nil
+							return m, m.scheduleSave()
 						}
 					}
 				}
@@ -133,9 +137,8 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				for i, t := range visibleTasks {
 					if !t.Completed {
 						m.cursor = i
-						m.saveToStorage()
 						m.lastKey = ""
-						return m, nil
+						return m, m.scheduleSave()
 					}
 				}
 				// If no uncompleted tasks, go to end
@@ -147,7 +150,8 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			m.saveToStorage()
+			m.lastKey = ""
+			return m, m.scheduleSave()
 		}
 		m.lastKey = ""
 
@@ -169,13 +173,14 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		task := m.getCurrentTask()
 		if task != nil {
 			m.taskList.Remove(task.ID)
-			m.saveToStorage()
 
 			// Adjust cursor if needed
 			visibleTasks = m.getVisibleTasks()
 			if m.cursor >= len(visibleTasks) && m.cursor > 0 {
 				m.cursor--
 			}
+			m.lastKey = ""
+			return m, m.scheduleSave()
 		}
 		m.lastKey = ""
 
@@ -341,10 +346,12 @@ func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.addDueSelection = m.addCursor
 		m.addTask()
+		return m, m.scheduleSave()
 
 	case "1", "2", "3", "4", "5":
 		m.addDueSelection = int(msg.String()[0] - '1')
 		m.addTask()
+		return m, m.scheduleSave()
 	}
 	return m, nil
 }
@@ -353,7 +360,6 @@ func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) addTask() {
 	dueDate := m.calculateDueDateFromSelection()
 	m.taskList.Add(m.input, m.addPriority, dueDate)
-	m.saveToStorage()
 	m.mode = modeList
 	m.input = ""
 	m.addField = 0

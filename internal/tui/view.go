@@ -23,6 +23,8 @@ func (m Model) View() string {
 		return m.renderAddTask()
 	case modeHelp:
 		return m.renderHelp()
+	case modeDelete:
+		return m.renderDeleteConfirmation()
 	default:
 		return "Unknown mode"
 	}
@@ -531,4 +533,40 @@ func (m Model) renderHelp() string {
 		boxStyle = boxStyle.MaxWidth(m.width - 4)
 	}
 	return boxStyle.Render(help.String())
+}
+
+// renderDeleteConfirmation renders the delete confirmation modal
+func (m Model) renderDeleteConfirmation() string {
+	var dialog strings.Builder
+
+	// Verify task exists
+	task := m.taskList.GetByID(m.deleteTaskID)
+	if task == nil {
+		// Task not found, return to list mode
+		return m.renderList()
+	}
+
+	// Question
+	dialog.WriteString("Are you sure you want to delete?")
+	dialog.WriteString("\n\n")
+
+	// Options
+	yesOption := fmt.Sprintf("%s %s", footerKeyStyle.Render("Y"), footerDescStyle.Render("Yes"))
+	noOption := fmt.Sprintf("%s %s", footerKeyStyle.Render("N"), footerDescStyle.Render("No"))
+	options := fmt.Sprintf("%s  %s", yesOption, noOption)
+	dialog.WriteString(options)
+
+	// Apply dialog box style
+	boxStyle := dialogBoxStyle.Padding(1, 2)
+	if m.width > 0 {
+		boxStyle = boxStyle.MaxWidth(40)
+	}
+
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		boxStyle.Render(dialog.String()),
+	)
 }
