@@ -34,23 +34,28 @@ func (m Model) renderList() string {
 	}
 
 	visibleTasks := m.getVisibleTasks()
+	taskContent := strings.Builder{}
+
+	// Render table header
+	taskContent.WriteString(m.renderTableHeader())
+	taskContent.WriteString(m.renderHeaderSeparator())
+
+	// Render tasks as table rows
 	if len(visibleTasks) == 0 {
-		emptyMsg := "No tasks yet! Press 'a' to add your first task."
-		b.WriteString(listStyle.Render(emptyStateStyle.Render(emptyMsg)))
+		// Show hint when no tasks
+		taskContent.WriteString("\n")
+		hintText := "Hit a to add a new task"
+		hintStyle := lipgloss.NewStyle().
+			Foreground(textDim).
+			PaddingLeft(1)
+		taskContent.WriteString(hintStyle.Render("  " + hintText))
 	} else {
-		taskContent := strings.Builder{}
-
-		// Render table header
-		taskContent.WriteString(m.renderTableHeader())
-		taskContent.WriteString(m.renderHeaderSeparator())
-
-		// Render tasks as table rows
 		for i, task := range visibleTasks {
 			taskContent.WriteString("\n")
 			taskContent.WriteString(m.renderTask(task, i == m.cursor))
 		}
-		b.WriteString(listStyle.Render(taskContent.String()))
 	}
+	b.WriteString(listStyle.Render(taskContent.String()))
 
 	// Messages
 	if m.err != nil {
@@ -173,7 +178,7 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 
 	// Task text (truncate if too long)
 	taskWidth := m.getTaskColumnWidth()
-	taskText := task.Text
+	taskText := strings.ToLower(task.Text)
 	if len(taskText) > taskWidth-4 { // Reserve space for checkbox
 		taskText = taskText[:taskWidth-7] + "..."
 	}
