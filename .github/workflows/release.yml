@@ -57,38 +57,11 @@ jobs:
           sha256sum * > checksums.txt
           cat checksums.txt
 
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
-          echo "## Tuido ${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "### Installation" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Download the appropriate binary for your platform:" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "- **Linux (x64)**: \`tuido-linux-amd64\`" >> $GITHUB_OUTPUT
-          echo "- **Linux (ARM64)**: \`tuido-linux-arm64\`" >> $GITHUB_OUTPUT
-          echo "- **macOS (Intel)**: \`tuido-darwin-amd64\`" >> $GITHUB_OUTPUT
-          echo "- **macOS (Apple Silicon)**: \`tuido-darwin-arm64\`" >> $GITHUB_OUTPUT
-          echo "- **Windows (x64)**: \`tuido-windows-amd64.exe\`" >> $GITHUB_OUTPUT
-          echo "- **Windows (ARM64)**: \`tuido-windows-arm64.exe\`" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Make the binary executable (Linux/macOS):" >> $GITHUB_OUTPUT
-          echo "\`\`\`bash" >> $GITHUB_OUTPUT
-          echo "chmod +x tuido-*" >> $GITHUB_OUTPUT
-          echo "sudo mv tuido-* /usr/local/bin/tuido" >> $GITHUB_OUTPUT
-          echo "\`\`\`" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "### Checksums" >> $GITHUB_OUTPUT
-          echo "See \`checksums.txt\` for SHA256 verification." >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
         run: |
           gh release create ${{ steps.version.outputs.VERSION }} \
             --title "Release ${{ steps.version.outputs.VERSION }}" \
-            --notes "${{ steps.release_notes.outputs.RELEASE_NOTES }}" \
+            --generate-notes \
             dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
