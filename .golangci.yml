@@ -1,0 +1,54 @@
+version: 2
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # Enable default linters (errcheck, govet, ineffassign, staticcheck, unused)
+  # plus a few additional useful ones
+  enable:
+    - misspell      # Check for misspelled words
+    - revive        # Golint replacement with more checks
+    - gocritic      # Opinionated checks for bugs, performance, and style
+
+formatters:
+  enable:
+    - gofmt         # Check if code is formatted with gofmt
+    - goimports     # Check if imports are formatted with goimports
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+
+  govet:
+    enable-all: true
+
+  goimports:
+    local-prefixes: github.com/jackroberts-gh/tuido
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: var-naming
+      - name: receiver-naming
+      - name: indent-error-flow
+      - name: superfluous-else
+      - name: unreachable-code
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on test files
+    - path: _test\.go
+      linters:
+        - errcheck
+        - revive
+
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -81,7 +81,7 @@ func (s *Storage) Save(taskList *model.TaskList) error {
 	// Atomically rename temp file to actual file
 	if err := os.Rename(tempFile, s.filePath); err != nil {
 		// Clean up temp file on error
-		os.Remove(tempFile)
+		_ = os.Remove(tempFile) // Ignore error - best effort cleanup
 		return err
 	}
 

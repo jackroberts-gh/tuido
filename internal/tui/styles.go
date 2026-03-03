@@ -23,10 +23,6 @@ var (
 		Light: "#059669", // Darker green for light mode
 		Dark:  "#10B981", // Lighter green for dark mode
 	}
-	warning = lipgloss.AdaptiveColor{
-		Light: "#D97706", // Darker amber for light mode
-		Dark:  "#F59E0B", // Lighter amber for dark mode
-	}
 	danger = lipgloss.AdaptiveColor{
 		Light: "#DC2626", // Darker red for light mode
 		Dark:  "#EF4444", // Lighter red for dark mode
@@ -65,42 +61,11 @@ var (
 		Light: "#6B7280", // Dark gray border for light mode
 		Dark:  "#6B7280", // Dark gray border for dark mode
 	}
-
-	// Selection background
-	selectionBg = lipgloss.AdaptiveColor{
-		Light: "#FDF2F8", // Light pink background for light mode
-		Dark:  "#831843", // Dark pink background for dark mode
-	}
 )
 
 var (
 	// Border styles
-	borderNormal = lipgloss.NormalBorder()
-	borderRound  = lipgloss.RoundedBorder()
-
-	// Title bar style
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(primary).
-			Padding(0, 1).
-			MarginBottom(1)
-
-	// App container
-	appStyle = lipgloss.NewStyle().
-			Padding(0, 1)
-
-	// Stats badges
-	statsContainerStyle = lipgloss.NewStyle().
-				MarginBottom(1)
-
-	statBadgeStyle = lipgloss.NewStyle().
-			Foreground(text).
-			Padding(0, 1).
-			MarginRight(1)
-
-	statNumberStyle = lipgloss.NewStyle().
-			Foreground(accent).
-			Bold(true)
+	borderRound = lipgloss.RoundedBorder()
 
 	// Task list container
 	taskListStyle = lipgloss.NewStyle().
@@ -108,14 +73,6 @@ var (
 			BorderForeground(border).
 			Padding(0, 1).
 			MarginBottom(1)
-
-	// Table header style
-	tableHeaderStyle = lipgloss.NewStyle().
-				Foreground(accent).
-				Bold(true).
-				PaddingLeft(1).
-				PaddingBottom(0).
-				MarginBottom(0)
 
 	// Task item styles
 	taskStyle = lipgloss.NewStyle().
@@ -135,10 +92,6 @@ var (
 	checkboxSelectedStyle = lipgloss.NewStyle().
 				Foreground(primary).
 				Bold(true)
-
-	checkboxSelectedCompletedStyle = lipgloss.NewStyle().
-					Foreground(primary).
-					Strikethrough(true)
 
 	checkboxCompletedStyle = lipgloss.NewStyle().
 				Foreground(textDim).
@@ -163,21 +116,8 @@ var (
 				Strikethrough(true)
 
 	// Due date styles
-	overdueStyle = lipgloss.NewStyle().
-			Foreground(danger).
-			Bold(true)
-
-	dueSoonStyle = lipgloss.NewStyle().
-			Foreground(warning)
-
 	dueDateStyle = lipgloss.NewStyle().
 			Foreground(textMuted)
-
-	// Empty state
-	emptyStateStyle = lipgloss.NewStyle().
-			Foreground(textMuted).
-			Italic(true).
-			Padding(2, 0)
 
 	// Message styles
 	errorStyle = lipgloss.NewStyle().
@@ -197,24 +137,6 @@ var (
 			Border(borderRound).
 			BorderForeground(primary).
 			Padding(1, 2)
-
-	dialogTitleStyle = lipgloss.NewStyle().
-				Foreground(primary).
-				Bold(true).
-				MarginBottom(1)
-
-	promptStyle = lipgloss.NewStyle().
-			Foreground(accent).
-			MarginBottom(1)
-
-	inputBoxStyle = lipgloss.NewStyle().
-			Border(borderNormal).
-			BorderForeground(accent).
-			Padding(0, 1).
-			Foreground(text)
-
-	inputCursorStyle = lipgloss.NewStyle().
-				Foreground(accent)
 
 	hintStyle = lipgloss.NewStyle().
 			Foreground(textMuted).
