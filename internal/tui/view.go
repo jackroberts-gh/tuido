@@ -71,7 +71,7 @@ func (m Model) renderList() string {
 	b.WriteString("\n")
 	footer := m.buildFooter([]footerItem{
 		{"a", "add"},
-		{"space", "toggle"},
+		{"space", "cycle status"},
 		{"d", "delete"},
 		{"sp", "sort priority"},
 		{"sd", "sort date"},
@@ -170,6 +170,14 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	var checkbox string
 	if task.Completed {
 		checkbox = checkboxCompletedStyle.Render("[x]")
+	} else if task.InProgress {
+		// Show spinner for in-progress tasks
+		spinnerView := m.spinner.View()
+		if selected {
+			checkbox = checkboxSelectedStyle.Render("[" + spinnerView + "]")
+		} else {
+			checkbox = checkboxStyle.Render("[" + spinnerView + "]")
+		}
 	} else if selected {
 		checkbox = checkboxSelectedStyle.Render("[ ]")
 	} else {
@@ -494,7 +502,7 @@ func (m Model) renderHelp() string {
 	}{
 		{"↑ / k", "Move cursor up"},
 		{"↓ / j", "Move cursor down"},
-		{"space", "Toggle task completion"},
+		{"space", "Cycle status (→ in-progress → done → todo)"},
 		{"a", "Add new task"},
 		{"d", "Delete selected task"},
 		{"sp", "Sort by priority"},

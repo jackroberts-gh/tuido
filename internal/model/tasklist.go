@@ -50,8 +50,50 @@ func (tl *TaskList) Toggle(id string) bool {
 			if tl.Tasks[i].Completed {
 				now := time.Now()
 				tl.Tasks[i].CompletedAt = &now
+				// Clear in-progress when completing
+				tl.Tasks[i].InProgress = false
 			} else {
 				tl.Tasks[i].CompletedAt = nil
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// ToggleInProgress toggles the in-progress status of a task by ID
+func (tl *TaskList) ToggleInProgress(id string) bool {
+	for i := range tl.Tasks {
+		if tl.Tasks[i].ID == id {
+			// Only toggle if not completed
+			if !tl.Tasks[i].Completed {
+				tl.Tasks[i].InProgress = !tl.Tasks[i].InProgress
+				return true
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// CycleStatus cycles through task states: not started -> in-progress -> completed -> not started
+func (tl *TaskList) CycleStatus(id string) bool {
+	for i := range tl.Tasks {
+		if tl.Tasks[i].ID == id {
+			if tl.Tasks[i].Completed {
+				// Completed -> Not started
+				tl.Tasks[i].Completed = false
+				tl.Tasks[i].InProgress = false
+				tl.Tasks[i].CompletedAt = nil
+			} else if tl.Tasks[i].InProgress {
+				// In-progress -> Completed
+				tl.Tasks[i].InProgress = false
+				tl.Tasks[i].Completed = true
+				now := time.Now()
+				tl.Tasks[i].CompletedAt = &now
+			} else {
+				// Not started -> In-progress
+				tl.Tasks[i].InProgress = true
 			}
 			return true
 		}

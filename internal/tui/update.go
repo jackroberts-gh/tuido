@@ -20,6 +20,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
+
+	default:
+		// Update spinner
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -151,15 +157,16 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lastKey = ""
 
 	case " ":
-		// Toggle completion
+		// Cycle through status: not started -> in-progress -> completed -> not started
 		task := m.getCurrentTask()
 		if task != nil {
 			wasCompleted := task.Completed
 
-			// Before toggling, find the next task in the list
+			// Before cycling, find the next task in the list (for cursor movement when completing)
 			var nextTaskID string
-			if !wasCompleted && m.showCompleted {
-				// We're about to complete a task - find the next uncompleted task
+			if !wasCompleted && task.InProgress && m.showCompleted {
+				// We're about to complete a task (in-progress -> completed)
+				// Find the next uncompleted task
 				visibleTasksBefore := m.getVisibleTasks()
 				for i := m.cursor + 1; i < len(visibleTasksBefore); i++ {
 					if !visibleTasksBefore[i].Completed {
@@ -169,8 +176,11 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			m.taskList.Toggle(task.ID)
-			isNowCompleted := !wasCompleted
+			m.taskList.CycleStatus(task.ID)
+
+			// Check if task just became completed
+			taskAfter := m.getCurrentTask()
+			isNowCompleted := taskAfter != nil && taskAfter.Completed && !wasCompleted
 
 			visibleTasks := m.getVisibleTasks()
 			maxCursor := len(visibleTasks) - 1
@@ -200,7 +210,6 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				// If no uncompleted tasks, go to end
 				m.cursor = maxCursor
 			} else {
-				// Either uncompleting, or hiding completed tasks (task disappears)
 				// Ensure cursor stays in bounds
 				if m.cursor > maxCursor && maxCursor >= 0 {
 					m.cursor = maxCursor

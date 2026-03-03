@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jackroberts-gh/tuido/internal/model"
 	"github.com/jackroberts-gh/tuido/internal/storage"
@@ -11,8 +12,8 @@ type viewMode int
 
 const (
 	modeList viewMode = iota // Main task list view
-	modeAdd                   // Adding new task
-	modeHelp                  // Help screen
+	modeAdd                  // Adding new task
+	modeHelp                 // Help screen
 )
 
 // sortMode represents how tasks are sorted
@@ -30,25 +31,29 @@ const (
 type Model struct {
 	taskList      *model.TaskList
 	storage       *storage.Storage
-	cursor        int       // Currently selected task index
-	mode          viewMode  // Current view mode
-	input         string    // Text input buffer
-	err           error     // Error message to display
-	width         int       // Terminal width
-	height        int       // Terminal height
-	showCompleted bool      // Whether to show completed tasks
-	message       string    // Success/info message to display
-	sortBy        sortMode  // Current sort mode
-	lastKey       string    // Last key pressed (for key sequences like "sd", "sp")
+	cursor        int           // Currently selected task index
+	mode          viewMode      // Current view mode
+	input         string        // Text input buffer
+	err           error         // Error message to display
+	width         int           // Terminal width
+	height        int           // Terminal height
+	showCompleted bool          // Whether to show completed tasks
+	message       string        // Success/info message to display
+	sortBy        sortMode      // Current sort mode
+	lastKey       string        // Last key pressed (for key sequences like "sd", "sp")
+	spinner       spinner.Model // Spinner for in-progress tasks
 	// Add task form fields
 	addField        int            // Current field in add mode (0=task, 1=priority, 2=due)
 	addCursor       int            // Cursor position within priority/due lists
 	addPriority     model.Priority // Selected priority for new task
-	addDueSelection int // Selected due date option (0=today, 1=tomorrow, 2=this week, 3=next week)
+	addDueSelection int            // Selected due date option (0=today, 1=tomorrow, 2=this week, 3=next week)
 }
 
 // NewModel creates a new Model with the given task list and storage
 func NewModel(taskList *model.TaskList, storage *storage.Storage) Model {
+	s := spinner.New()
+	s.Spinner = spinner.Line
+
 	return Model{
 		taskList:      taskList,
 		storage:       storage,
@@ -60,12 +65,13 @@ func NewModel(taskList *model.TaskList, storage *storage.Storage) Model {
 		height:        24,
 		showCompleted: true,
 		message:       "",
+		spinner:       s,
 	}
 }
 
 // Init initializes the model (required by BubbleTea)
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 // getVisibleTasks returns the tasks that should be displayed based on showCompleted and sorting

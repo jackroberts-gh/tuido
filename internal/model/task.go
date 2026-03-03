@@ -32,6 +32,7 @@ type Task struct {
 	ID          string     `json:"id"`
 	Text        string     `json:"text"`
 	Completed   bool       `json:"completed"`
+	InProgress  bool       `json:"in_progress"`
 	Priority    Priority   `json:"priority"`
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
