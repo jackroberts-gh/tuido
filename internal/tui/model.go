@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"sort"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jackroberts-gh/tuido/internal/model"
@@ -125,50 +127,38 @@ func (m Model) applySortCriteria(tasks []model.Task) []model.Task {
 	switch m.sortBy {
 	case sortPriority:
 		// Sort by priority: high > medium > low
-		for i := 0; i < len(sorted)-1; i++ {
-			for j := i + 1; j < len(sorted); j++ {
-				if sorted[i].Priority < sorted[j].Priority {
-					sorted[i], sorted[j] = sorted[j], sorted[i]
-				}
-			}
-		}
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].Priority > sorted[j].Priority
+		})
 	case sortPriorityReverse:
 		// Sort by priority: low > medium > high
-		for i := 0; i < len(sorted)-1; i++ {
-			for j := i + 1; j < len(sorted); j++ {
-				if sorted[i].Priority > sorted[j].Priority {
-					sorted[i], sorted[j] = sorted[j], sorted[i]
-				}
-			}
-		}
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].Priority < sorted[j].Priority
+		})
 	case sortDueDate:
 		// Sort by due date: earliest first, nil dates at the end (furthest in future)
-		for i := 0; i < len(sorted)-1; i++ {
-			for j := i + 1; j < len(sorted); j++ {
-				// Handle nil due dates - nil is treated as furthest in future, so comes last
-				if sorted[i].DueDate == nil && sorted[j].DueDate != nil {
-					sorted[i], sorted[j] = sorted[j], sorted[i]
-				} else if sorted[i].DueDate != nil && sorted[j].DueDate != nil {
-					if sorted[i].DueDate.After(*sorted[j].DueDate) {
-						sorted[i], sorted[j] = sorted[j], sorted[i]
-					}
-				}
+		sort.Slice(sorted, func(i, j int) bool {
+			// nil dates go last
+			if sorted[i].DueDate == nil {
+				return false
 			}
-		}
+			if sorted[j].DueDate == nil {
+				return true
+			}
+			return sorted[i].DueDate.Before(*sorted[j].DueDate)
+		})
 	case sortDueDateReverse:
 		// Sort by due date: latest first, nil dates at the beginning (furthest in future)
-		for i := 0; i < len(sorted)-1; i++ {
-			for j := i + 1; j < len(sorted); j++ {
-				// Handle nil due dates - nil is treated as furthest in future, so comes first
-				if sorted[i].DueDate != nil && sorted[j].DueDate == nil {
-					sorted[i], sorted[j] = sorted[j], sorted[i]
-				} else if sorted[i].DueDate != nil && sorted[j].DueDate != nil {
-					if sorted[i].DueDate.Before(*sorted[j].DueDate) {
-						sorted[i], sorted[j] = sorted[j], sorted[i]
-					}
-				}
+		sort.Slice(sorted, func(i, j int) bool {
+			// nil dates go first
+			if sorted[i].DueDate == nil {
+				return true
 			}
-		}
+			if sorted[j].DueDate == nil {
+				return false
+			}
+			return sorted[i].DueDate.After(*sorted[j].DueDate)
+		})
 	}
 
 	return sorted
