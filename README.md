@@ -1,6 +1,6 @@
 # Tuido
 
-Terminal TODO list manager.
+Tuido (_pronounced to-do) is a simple, minimalist TUI designed to manage a local todo list.
 
 ## Installation
 
@@ -19,7 +19,7 @@ Download the latest binary for your platform from the [releases page](https://gi
 ```bash
 git clone https://github.com/jackroberts-gh/tuido.git
 cd tuido
-go build -o tuido main.go
+go build
 ```
 
 ## Usage
@@ -47,9 +47,6 @@ Colors adapt to your system theme. Restart the app if you switch between light/d
 - `?` - Help
 - `q`/`Ctrl+C` - Quit
 
-## Due Dates
-
-Supports relative (`3d`, `1w`, `2m`), absolute (`2026-03-15`), natural (`today`, `tomorrow`), and short (`Jan 15`) formats. Press Enter with empty input to remove a due date.
 
 ## License
 
