@@ -160,12 +160,37 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		// Enter add mode
 		m.mode = modeAdd
+		m.editTaskID = "" // Clear edit task ID (we're adding, not editing)
 		m.input = ""
 		m.addField = 0
 		m.addCursor = 0 // Start at Low priority
 		m.addPriority = model.PriorityLow
 		m.addDueSelection = 0
 		m.clearMessages()
+		m.lastKey = ""
+
+	case "e":
+		// Enter edit mode for the current task
+		task := m.getCurrentTask()
+		if task != nil {
+			m.mode = modeAdd
+			m.editTaskID = task.ID
+			m.input = task.Text
+			m.addField = 0
+			// Set cursor position based on task priority
+			switch task.Priority {
+			case model.PriorityLow:
+				m.addCursor = 0
+			case model.PriorityMedium:
+				m.addCursor = 1
+			case model.PriorityHigh:
+				m.addCursor = 2
+			}
+			m.addPriority = task.Priority
+			// Calculate due date selection from task due date
+			m.addDueSelection = m.calculateDueSelectionFromDate(task.DueDate)
+			m.clearMessages()
+		}
 		m.lastKey = ""
 
 	case "d":
@@ -249,7 +274,15 @@ func (m Model) handleAddTaskInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if strings.TrimSpace(m.input) != "" {
 			m.addField = 1
-			m.addCursor = 0 // Reset cursor to Low priority
+			// Set cursor based on current priority (for edit mode)
+			switch m.addPriority {
+			case model.PriorityLow:
+				m.addCursor = 0
+			case model.PriorityMedium:
+				m.addCursor = 1
+			case model.PriorityHigh:
+				m.addCursor = 2
+			}
 			m.clearMessages()
 		} else {
 			m.err = fmt.Errorf("task cannot be empty")
@@ -298,22 +331,22 @@ func (m Model) handleAddPrioritySelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.addPriority = model.PriorityHigh
 		}
 		m.addField = 2
-		m.addCursor = 0 // Reset cursor to Today
+		m.addCursor = m.addDueSelection // Set cursor to current due date selection
 
 	case "1":
 		m.addPriority = model.PriorityLow
 		m.addField = 2
-		m.addCursor = 0
+		m.addCursor = m.addDueSelection
 
 	case "2":
 		m.addPriority = model.PriorityMedium
 		m.addField = 2
-		m.addCursor = 0
+		m.addCursor = m.addDueSelection
 
 	case "3":
 		m.addPriority = model.PriorityHigh
 		m.addField = 2
-		m.addCursor = 0
+		m.addCursor = m.addDueSelection
 	}
 	return m, nil
 }
@@ -350,11 +383,25 @@ func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// addTask completes the add flow and creates the task
+// addTask completes the add/edit flow and creates or updates the task
 func (m *Model) addTask() {
 	dueDate := m.calculateDueDateFromSelection()
-	m.taskList.Add(m.input, m.addPriority, dueDate)
+
+	if m.editTaskID != "" {
+		// Editing existing task
+		task := m.taskList.GetByID(m.editTaskID)
+		if task != nil {
+			task.Text = m.input
+			task.Priority = m.addPriority
+			task.DueDate = dueDate
+		}
+	} else {
+		// Adding new task
+		m.taskList.Add(m.input, m.addPriority, dueDate)
+	}
+
 	m.mode = modeList
+	m.editTaskID = ""
 	m.input = ""
 	m.addField = 0
 	m.addCursor = 0
@@ -379,6 +426,33 @@ func (m Model) calculateDueDateFromSelection() *time.Time {
 	}
 
 	return &result
+}
+
+// calculateDueSelectionFromDate converts a due date back to a selection index
+func (m Model) calculateDueSelectionFromDate(dueDate *time.Time) int {
+	if dueDate == nil {
+		return 4 // No due date
+	}
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	dueDay := time.Date(dueDate.Year(), dueDate.Month(), dueDate.Day(), 0, 0, 0, 0, dueDate.Location())
+
+	daysDiff := int(dueDay.Sub(today).Hours() / 24)
+
+	switch {
+	case daysDiff == 0:
+		return 0 // Today
+	case daysDiff == 1:
+		return 1 // Tomorrow
+	case daysDiff >= 2 && daysDiff <= 7:
+		return 2 // This week
+	case daysDiff >= 8 && daysDiff <= 14:
+		return 3 // Next week
+	default:
+		// For dates outside the range, default to "This week"
+		return 2
+	}
 }
 
 // cycleSortMode cycles through sort modes and preserves cursor position

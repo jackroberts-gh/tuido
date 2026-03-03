@@ -78,6 +78,7 @@ func (m Model) renderList() string {
 	b.WriteString("\n")
 	footer := m.buildFooter([]footerItem{
 		{"a", "add"},
+		{"e", "edit"},
 		{"space", "cycle status"},
 		{"d", "delete"},
 		{"sp", "sort priority"},
@@ -509,6 +510,7 @@ func (m Model) renderHelp() string {
 		{"↓ / j", "Move cursor down"},
 		{"space", "Cycle status (→ in-progress → done → todo)"},
 		{"a", "Add new task"},
+		{"e", "Edit selected task"},
 		{"d", "Delete selected task"},
 		{"sp", "Sort by priority"},
 		{"sd", "Sort by due date"},

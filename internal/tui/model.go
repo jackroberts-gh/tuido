@@ -54,7 +54,8 @@ type Model struct {
 	savePending   bool          // Whether a save is scheduled but not yet executed
 	// Delete confirmation
 	deleteTaskID string // ID of task to delete (when in modeDelete)
-	// Add task form fields
+	// Add/Edit task form fields
+	editTaskID      string         // ID of task being edited (empty if adding new task)
 	addField        int            // Current field in add mode (0=task, 1=priority, 2=due)
 	addCursor       int            // Cursor position within priority/due lists
 	addPriority     model.Priority // Selected priority for new task
