@@ -378,6 +378,8 @@ func (m Model) renderAddTask() string {
 		formContent.WriteString(m.renderDueList(2))
 		formContent.WriteString("\n")
 		formContent.WriteString(m.renderDueList(3))
+		formContent.WriteString("\n")
+		formContent.WriteString(m.renderDueList(4))
 	}
 
 	// Apply box style
@@ -406,7 +408,7 @@ func (m Model) renderAddTask() string {
 	case 2:
 		footerItems = []footerItem{
 			{"↑↓", "navigate"},
-			{"1-4", "select & add"},
+			{"1-5", "select & add"},
 			{"↵", "add"},
 			{"esc", "cancel"},
 		}
@@ -460,7 +462,7 @@ func (m Model) renderPriorityList(index int) string {
 
 // renderDueList renders a single due date option
 func (m Model) renderDueList(index int) string {
-	labels := []string{"Today", "Tomorrow", "This week", "Next week"}
+	labels := []string{"Today", "Tomorrow", "This week", "Next week", "No due date"}
 	label := labels[index]
 
 	cursor := " "

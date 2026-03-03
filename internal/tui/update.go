@@ -57,6 +57,13 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.lastKey == "s" {
 		switch key {
 		case "d":
+			// Save current task ID before sorting
+			currentTask := m.getCurrentTask()
+			var currentTaskID string
+			if currentTask != nil {
+				currentTaskID = currentTask.ID
+			}
+
 			// Cycle through due date sort: none -> ascending -> descending -> none
 			switch m.sortBy {
 			case sortNone:
@@ -69,10 +76,30 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				// If in priority sort, switch to due date
 				m.sortBy = sortDueDate
 			}
+
+			// Try to restore cursor to same task
+			if currentTaskID != "" {
+				visibleTasks := m.getVisibleTasks()
+				for i, task := range visibleTasks {
+					if task.ID == currentTaskID {
+						m.cursor = i
+						m.lastKey = ""
+						return m, nil
+					}
+				}
+			}
+
 			m.cursor = 0
 			m.lastKey = ""
 			return m, nil
 		case "p":
+			// Save current task ID before sorting
+			currentTask := m.getCurrentTask()
+			var currentTaskID string
+			if currentTask != nil {
+				currentTaskID = currentTask.ID
+			}
+
 			// Cycle through priority sort: none -> high-to-low -> low-to-high -> none
 			switch m.sortBy {
 			case sortNone:
@@ -85,6 +112,19 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				// If in due date sort, switch to priority
 				m.sortBy = sortPriority
 			}
+
+			// Try to restore cursor to same task
+			if currentTaskID != "" {
+				visibleTasks := m.getVisibleTasks()
+				for i, task := range visibleTasks {
+					if task.ID == currentTaskID {
+						m.cursor = i
+						m.lastKey = ""
+						return m, nil
+					}
+				}
+			}
+
 			m.cursor = 0
 			m.lastKey = ""
 			return m, nil
@@ -114,7 +154,59 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Toggle completion
 		task := m.getCurrentTask()
 		if task != nil {
+			wasCompleted := task.Completed
+
+			// Before toggling, find the next task in the list
+			var nextTaskID string
+			if !wasCompleted && m.showCompleted {
+				// We're about to complete a task - find the next uncompleted task
+				visibleTasksBefore := m.getVisibleTasks()
+				for i := m.cursor + 1; i < len(visibleTasksBefore); i++ {
+					if !visibleTasksBefore[i].Completed {
+						nextTaskID = visibleTasksBefore[i].ID
+						break
+					}
+				}
+			}
+
 			m.taskList.Toggle(task.ID)
+			isNowCompleted := !wasCompleted
+
+			visibleTasks := m.getVisibleTasks()
+			maxCursor := len(visibleTasks) - 1
+
+			if isNowCompleted && m.showCompleted {
+				// Task just completed - move cursor to the next uncompleted task
+				if nextTaskID != "" {
+					// Find where the next task ended up after re-sorting
+					for i, t := range visibleTasks {
+						if t.ID == nextTaskID {
+							m.cursor = i
+							m.saveToStorage()
+							m.lastKey = ""
+							return m, nil
+						}
+					}
+				}
+				// If no next task was found, go to first uncompleted task
+				for i, t := range visibleTasks {
+					if !t.Completed {
+						m.cursor = i
+						m.saveToStorage()
+						m.lastKey = ""
+						return m, nil
+					}
+				}
+				// If no uncompleted tasks, go to end
+				m.cursor = maxCursor
+			} else {
+				// Either uncompleting, or hiding completed tasks (task disappears)
+				// Ensure cursor stays in bounds
+				if m.cursor > maxCursor && maxCursor >= 0 {
+					m.cursor = maxCursor
+				}
+			}
+
 			m.saveToStorage()
 		}
 		m.lastKey = ""
@@ -152,9 +244,28 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lastKey = "s"
 
 	case "t":
-		// Toggle show completed
+		// Toggle show completed - preserve cursor position if possible
+		currentTask := m.getCurrentTask()
+		var currentTaskID string
+		if currentTask != nil {
+			currentTaskID = currentTask.ID
+		}
+
 		m.showCompleted = !m.showCompleted
-		// Reset cursor to 0 to avoid out of bounds
+
+		// Try to find the same task in the new visible list
+		if currentTaskID != "" {
+			visibleTasks := m.getVisibleTasks()
+			for i, task := range visibleTasks {
+				if task.ID == currentTaskID {
+					m.cursor = i
+					m.lastKey = ""
+					return m, nil
+				}
+			}
+		}
+
+		// Task not found (was filtered out), default to 0
 		m.cursor = 0
 		m.lastKey = ""
 
@@ -283,7 +394,7 @@ func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.addCursor < 3 {
+		if m.addCursor < 4 {
 			m.addCursor++
 		}
 
@@ -291,7 +402,7 @@ func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addDueSelection = m.addCursor
 		m.addTask()
 
-	case "1", "2", "3", "4":
+	case "1", "2", "3", "4", "5":
 		m.addDueSelection = int(msg.String()[0] - '1')
 		m.addTask()
 	}
@@ -323,6 +434,8 @@ func (m Model) calculateDueDateFromSelection() *time.Time {
 		result = now.Add(7 * 24 * time.Hour)
 	case 3: // Next week (14 days)
 		result = now.Add(14 * 24 * time.Hour)
+	case 4: // No due date
+		return nil
 	}
 
 	return &result

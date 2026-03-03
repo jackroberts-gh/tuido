@@ -82,8 +82,33 @@ func (m Model) getVisibleTasks() []model.Task {
 }
 
 // sortTasks sorts tasks based on the current sort mode
+// Completed tasks always appear first in completion order (unsorted)
 func (m Model) sortTasks(tasks []model.Task) []model.Task {
-	if m.sortBy == sortNone {
+	// Separate completed and uncompleted tasks
+	var completed, uncompleted []model.Task
+	for _, task := range tasks {
+		if task.Completed {
+			completed = append(completed, task)
+		} else {
+			uncompleted = append(uncompleted, task)
+		}
+	}
+
+	// Only sort uncompleted tasks - completed tasks stay in completion order
+	if m.sortBy != sortNone {
+		uncompleted = m.applySortCriteria(uncompleted)
+	}
+
+	// Return completed tasks first (in original order), then sorted uncompleted
+	result := make([]model.Task, 0, len(tasks))
+	result = append(result, completed...)
+	result = append(result, uncompleted...)
+	return result
+}
+
+// applySortCriteria applies the current sort criteria to a list of tasks
+func (m Model) applySortCriteria(tasks []model.Task) []model.Task {
+	if len(tasks) == 0 {
 		return tasks
 	}
 
@@ -111,10 +136,10 @@ func (m Model) sortTasks(tasks []model.Task) []model.Task {
 			}
 		}
 	case sortDueDate:
-		// Sort by due date: earliest first, nil dates at the end
+		// Sort by due date: earliest first, nil dates at the end (furthest in future)
 		for i := 0; i < len(sorted)-1; i++ {
 			for j := i + 1; j < len(sorted); j++ {
-				// Handle nil due dates
+				// Handle nil due dates - nil is treated as furthest in future, so comes last
 				if sorted[i].DueDate == nil && sorted[j].DueDate != nil {
 					sorted[i], sorted[j] = sorted[j], sorted[i]
 				} else if sorted[i].DueDate != nil && sorted[j].DueDate != nil {
@@ -125,11 +150,11 @@ func (m Model) sortTasks(tasks []model.Task) []model.Task {
 			}
 		}
 	case sortDueDateReverse:
-		// Sort by due date: latest first, nil dates at the end
+		// Sort by due date: latest first, nil dates at the beginning (furthest in future)
 		for i := 0; i < len(sorted)-1; i++ {
 			for j := i + 1; j < len(sorted); j++ {
-				// Handle nil due dates
-				if sorted[i].DueDate == nil && sorted[j].DueDate != nil {
+				// Handle nil due dates - nil is treated as furthest in future, so comes first
+				if sorted[i].DueDate != nil && sorted[j].DueDate == nil {
 					sorted[i], sorted[j] = sorted[j], sorted[i]
 				} else if sorted[i].DueDate != nil && sorted[j].DueDate != nil {
 					if sorted[i].DueDate.Before(*sorted[j].DueDate) {
