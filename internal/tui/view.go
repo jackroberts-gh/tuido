@@ -203,22 +203,45 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	// Task text (truncate if too long)
 	taskWidth := m.getTaskColumnWidth()
 	taskText := strings.ToLower(task.Text)
-	if len(taskText) > taskWidth-4 { // Reserve space for checkbox
-		taskText = taskText[:taskWidth-7] + "..."
+
+	// Add in-progress indicator if applicable
+	var inProgressIndicator string
+	if task.InProgress && !task.Completed {
+		inProgressIndicator = " (in-progress)"
 	}
 
-	// Pad task text BEFORE styling to ensure proper alignment
+	// Calculate available space for task text
 	taskDisplayWidth := taskWidth - 4 // Account for checkbox
-	taskText = fmt.Sprintf("%-*s", taskDisplayWidth, taskText)
+	availableSpace := taskDisplayWidth - len(inProgressIndicator)
+
+	// Truncate task text if needed
+	if len(taskText) > availableSpace {
+		taskText = taskText[:availableSpace-3] + "..."
+	}
 
 	var styledTaskText string
 	if task.Completed {
-		styledTaskText = completedTaskStyle.Render(taskText)
+		// Pad the combined text
+		combined := fmt.Sprintf("%-*s", taskDisplayWidth, taskText+inProgressIndicator)
+		styledTaskText = completedTaskStyle.Render(combined)
 	} else {
+		var baseStyle lipgloss.Style
 		if selected {
-			styledTaskText = checkboxSelectedStyle.Render(taskText)
+			baseStyle = checkboxSelectedStyle
 		} else {
-			styledTaskText = taskTextStyle.Render(taskText)
+			baseStyle = taskTextStyle
+		}
+
+		if inProgressIndicator != "" {
+			// Render task text, then indicator separately (not bold, italic, muted)
+			indicatorStyle := lipgloss.NewStyle().Italic(true).Foreground(textMuted)
+			// Add padding after the indicator
+			totalLen := len(taskText) + len(inProgressIndicator)
+			padding := strings.Repeat(" ", taskDisplayWidth-totalLen)
+			styledTaskText = baseStyle.Render(taskText) + indicatorStyle.Render(inProgressIndicator) + padding
+		} else {
+			paddedText := fmt.Sprintf("%-*s", taskDisplayWidth, taskText)
+			styledTaskText = baseStyle.Render(paddedText)
 		}
 	}
 
