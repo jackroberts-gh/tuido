@@ -9,6 +9,11 @@ import (
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
 
+const (
+	priorityColumnWidth = 10
+	dueDateColumnWidth  = 12
+)
+
 // View renders the current view based on the mode
 func (m Model) View() string {
 	switch m.mode {
@@ -105,8 +110,6 @@ func (m Model) buildFooter(items []footerItem) string {
 func (m Model) renderTableHeader() string {
 	// Calculate column widths
 	taskWidth := m.getTaskColumnWidth()
-	priorityWidth := 10
-	dueDateWidth := 12
 
 	// Build header with proper spacing
 	// Account for: cursor(1) + space(1) = 2 chars before checkbox/Task header
@@ -115,8 +118,8 @@ func (m Model) renderTableHeader() string {
 	// Build the full header string first, then apply styling
 	header := fmt.Sprintf("  %-*s  %-*s  %-*s",
 		taskWidth, "Task",
-		priorityWidth, "Priority",
-		dueDateWidth, "Due Date")
+		priorityColumnWidth, "Priority",
+		dueDateColumnWidth, "Due Date")
 
 	// Use muted text color for the entire header (so Due Date isn't in accent color)
 	headerStyle := lipgloss.NewStyle().
@@ -131,7 +134,7 @@ func (m Model) renderTableHeader() string {
 func (m Model) renderHeaderSeparator() string {
 	// Calculate total width for separator line
 	taskWidth := m.getTaskColumnWidth()
-	totalWidth := 2 + taskWidth + 2 + 10 + 2 + 12 // spacing included
+	totalWidth := 2 + taskWidth + 2 + priorityColumnWidth + 2 + dueDateColumnWidth // spacing included
 
 	separator := strings.Repeat("─", totalWidth)
 
@@ -216,12 +219,12 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	case model.PriorityHigh:
 		priorityText = "high"
 	}
-	priorityText = fmt.Sprintf("%-10s", priorityText)
+	priorityText = fmt.Sprintf("%-*s", priorityColumnWidth, priorityText)
 	priority := m.formatPriority(task.Priority, priorityText, task.Completed)
 
 	// Due date - pad before styling
 	dueDateText := m.getDueDateText(&task)
-	dueDateText = fmt.Sprintf("%-12s", dueDateText)
+	dueDateText = fmt.Sprintf("%-*s", dueDateColumnWidth, dueDateText)
 	dueDate := m.formatDueDateStyled(&task, dueDateText, task.Completed)
 
 	// Build the line with properly aligned columns

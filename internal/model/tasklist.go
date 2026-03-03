@@ -133,14 +133,6 @@ func (tl *TaskList) GetByID(id string) *Task {
 	return nil
 }
 
-// GetByIndex retrieves a task by index (for cursor navigation)
-func (tl *TaskList) GetByIndex(index int) *Task {
-	if index < 0 || index >= len(tl.Tasks) {
-		return nil
-	}
-	return &tl.Tasks[index]
-}
-
 // FilterActive returns only incomplete tasks
 func (tl *TaskList) FilterActive() []Task {
 	active := []Task{}

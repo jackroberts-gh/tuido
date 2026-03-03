@@ -60,76 +60,10 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.lastKey == "s" {
 		switch key {
 		case "d":
-			// Save current task ID before sorting
-			currentTask := m.getCurrentTask()
-			var currentTaskID string
-			if currentTask != nil {
-				currentTaskID = currentTask.ID
-			}
-
-			// Cycle through due date sort: none -> ascending -> descending -> none
-			switch m.sortBy {
-			case sortNone:
-				m.sortBy = sortDueDate
-			case sortDueDate:
-				m.sortBy = sortDueDateReverse
-			case sortDueDateReverse:
-				m.sortBy = sortNone
-			default:
-				// If in priority sort, switch to due date
-				m.sortBy = sortDueDate
-			}
-
-			// Try to restore cursor to same task
-			if currentTaskID != "" {
-				visibleTasks := m.getVisibleTasks()
-				for i, task := range visibleTasks {
-					if task.ID == currentTaskID {
-						m.cursor = i
-						m.lastKey = ""
-						return m, nil
-					}
-				}
-			}
-
-			m.cursor = 0
-			m.lastKey = ""
+			m = m.cycleSortMode(sortDueDate, sortDueDateReverse)
 			return m, nil
 		case "p":
-			// Save current task ID before sorting
-			currentTask := m.getCurrentTask()
-			var currentTaskID string
-			if currentTask != nil {
-				currentTaskID = currentTask.ID
-			}
-
-			// Cycle through priority sort: none -> high-to-low -> low-to-high -> none
-			switch m.sortBy {
-			case sortNone:
-				m.sortBy = sortPriority
-			case sortPriority:
-				m.sortBy = sortPriorityReverse
-			case sortPriorityReverse:
-				m.sortBy = sortNone
-			default:
-				// If in due date sort, switch to priority
-				m.sortBy = sortPriority
-			}
-
-			// Try to restore cursor to same task
-			if currentTaskID != "" {
-				visibleTasks := m.getVisibleTasks()
-				for i, task := range visibleTasks {
-					if task.ID == currentTaskID {
-						m.cursor = i
-						m.lastKey = ""
-						return m, nil
-					}
-				}
-			}
-
-			m.cursor = 0
-			m.lastKey = ""
+			m = m.cycleSortMode(sortPriority, sortPriorityReverse)
 			return m, nil
 		default:
 			// Invalid sequence, clear lastKey
@@ -445,6 +379,45 @@ func (m Model) calculateDueDateFromSelection() *time.Time {
 	}
 
 	return &result
+}
+
+// cycleSortMode cycles through sort modes and preserves cursor position
+func (m Model) cycleSortMode(primarySort, reverseSort sortMode) Model {
+	// Save current task ID before sorting
+	currentTask := m.getCurrentTask()
+	var currentTaskID string
+	if currentTask != nil {
+		currentTaskID = currentTask.ID
+	}
+
+	// Cycle through sort: none -> primary -> reverse -> none
+	switch m.sortBy {
+	case sortNone:
+		m.sortBy = primarySort
+	case primarySort:
+		m.sortBy = reverseSort
+	case reverseSort:
+		m.sortBy = sortNone
+	default:
+		// If in a different sort mode, switch to primary
+		m.sortBy = primarySort
+	}
+
+	// Try to restore cursor to same task
+	if currentTaskID != "" {
+		visibleTasks := m.getVisibleTasks()
+		for i, task := range visibleTasks {
+			if task.ID == currentTaskID {
+				m.cursor = i
+				m.lastKey = ""
+				return m
+			}
+		}
+	}
+
+	m.cursor = 0
+	m.lastKey = ""
+	return m
 }
 
 // handleHelpMode handles keyboard input in help mode
