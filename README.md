@@ -1,6 +1,6 @@
 # Tuido
 
-Tuido (_pronounced to-do) is a simple, minimalist TUI designed to manage a local todo list.
+Tuido (_pronounced to-do_) is a simple, minimalist TUI designed to manage a local todo list.
 
 ## Installation
 
