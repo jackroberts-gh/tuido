@@ -39,8 +39,8 @@ Colors adapt to your system theme. Restart the app if you switch between light/d
 - `a` - Add task
 - `e` - Edit task
 - `d` - Delete task
-- `p` - Change priority (1=Low, 2=Medium, 3=High)
-- `Shift+E` - Edit due date
+- `sp` - Sort by priority (3 modes - highest, lowest, unsorted)
+- `sd` - Sort by date (3 modes - soonest, latest, unsorted)
 
 **View**
 - `t` - Toggle completed tasks
