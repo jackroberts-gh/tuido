@@ -6,6 +6,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
 
@@ -23,15 +25,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case themeTickMsg:
-		// Re-query the terminal background color, then schedule the next poll
+		// Fallback path for terminals without DEC mode 2031. If the terminal
+		// has since told us it supports notifications, drop the poll loop here
+		// and rely on the pushed events instead.
+		if m.themePushed {
+			return m, nil
+		}
 		return m, pollTheme()
 
-	case tea.BackgroundColorMsg:
-		// Rebuild the palette only when the light/dark mode actually changed
-		if isDark := msg.IsDark(); isDark != m.isDark {
-			m.isDark = isDark
-			m.styles = newStyles(isDark)
+	case tea.ModeReportMsg:
+		// Reply to our mode 2031 query. A terminal that recognises the mode
+		// will push theme changes, so the poll can be switched off. Terminals
+		// without support answer "not recognized" (or never answer at all) and
+		// keep polling.
+		if dm, ok := msg.Mode.(ansi.DECMode); ok && int(dm) == themeNotificationMode {
+			if !msg.Value.IsNotRecognized() {
+				m.useThemeNotifications()
+			}
 		}
+		return m, nil
+
+	case tea.BackgroundColorMsg:
+		// Reply to our own background color query (the poll, or startup)
+		m.applyTheme(msg.IsDark())
+		return m, nil
+
+	case uv.DarkColorSchemeEvent:
+		// Pushed by the terminal the moment it switched to a dark theme.
+		// Receiving this at all proves notifications work, so stop polling
+		// even if the mode report never arrived.
+		m.useThemeNotifications()
+		m.applyTheme(true)
+		return m, nil
+
+	case uv.LightColorSchemeEvent:
+		// Pushed by the terminal the moment it switched to a light theme
+		m.useThemeNotifications()
+		m.applyTheme(false)
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -49,7 +79,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Global quit keys
 	if msg.String() == "ctrl+c" {
-		return m, tea.Quit
+		return m, quitCmd()
 	}
 
 	switch m.mode {
@@ -64,6 +94,12 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// quitCmd disables theme change notifications before quitting, so the terminal
+// is not left with mode 2031 enabled.
+func quitCmd() tea.Cmd {
+	return tea.Sequence(stopThemeNotificationsCmd(), tea.Quit)
 }
 
 // handleListMode handles keyboard input in list view mode
@@ -92,7 +128,7 @@ func (m Model) handleListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch key {
 	case "q":
-		return m, tea.Quit
+		return m, quitCmd()
 
 	case "up", "k":
 		if m.cursor > 0 {

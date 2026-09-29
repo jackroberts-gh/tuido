@@ -6,15 +6,26 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jackroberts-gh/tuido/internal/model"
 	"github.com/jackroberts-gh/tuido/internal/storage"
 )
 
 const (
 	saveDebounceDuration = 500 * time.Millisecond
+
 	// themePollInterval is how often the terminal is re-queried for its
 	// background color, so the palette follows light/dark mode switches.
-	themePollInterval = time.Second
+	//
+	// This is only used on terminals that do not support DEC private mode 2031.
+	// Terminals that do support it push a color scheme event the moment the
+	// theme changes (see themeNotificationsCmd), and the poll is switched off
+	// entirely for them.
+	themePollInterval = 500 * time.Millisecond
+
+	// themeNotificationMode is the DEC private mode number for light/dark
+	// change notifications (ansi.ModeLightDark).
+	themeNotificationMode = 2031
 )
 
 // saveMsg is sent when the debounced save timer expires
@@ -33,6 +44,24 @@ func themeTick() tea.Cmd {
 	return tea.Tick(themePollInterval, func(t time.Time) tea.Msg {
 		return themeTickMsg(t)
 	})
+}
+
+// themeNotificationsCmd asks the terminal to report light/dark mode changes as
+// they happen (DEC private mode 2031), then asks whether that mode is actually
+// supported. Supporting terminals answer the query and push a color scheme
+// event on every theme switch, which lets us stop polling entirely; the rest
+// never answer and stay on the poll.
+func themeNotificationsCmd() tea.Cmd {
+	return tea.Batch(
+		tea.Raw(ansi.SetModeLightDark),
+		tea.Raw(ansi.RequestModeLightDark),
+	)
+}
+
+// stopThemeNotificationsCmd turns the mode back off, so the terminal is left as
+// we found it on quit.
+func stopThemeNotificationsCmd() tea.Cmd {
+	return tea.Raw(ansi.ResetModeLightDark)
 }
 
 // viewMode represents the current view/mode of the application
@@ -74,6 +103,7 @@ type Model struct {
 	savePending   bool          // Whether a save is scheduled but not yet executed
 	styles        styles        // Styles for the active (light/dark) terminal theme
 	isDark        bool          // Whether the terminal background is dark
+	themePushed   bool          // Terminal pushes theme changes (DEC mode 2031), so no polling
 	// Delete confirmation
 	deleteTaskID string // ID of task to delete (when in modeDelete)
 	// Add/Edit task form fields
@@ -109,7 +139,7 @@ func NewModel(taskList *model.TaskList, storage *storage.Storage) Model {
 
 // Init initializes the model (required by BubbleTea)
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, pollTheme())
+	return tea.Batch(m.spinner.Tick, themeNotificationsCmd(), pollTheme())
 }
 
 // StartInAddMode configures the model to start in add task mode
@@ -237,6 +267,24 @@ func (m *Model) performSave() {
 	if err := m.storage.Save(m.taskList); err != nil {
 		m.err = err
 	}
+}
+
+// applyTheme switches the palette to match the terminal background, rebuilding
+// the styles only when the light/dark mode actually changed. Both the polled
+// reply and the pushed color scheme events land here.
+func (m *Model) applyTheme(isDark bool) {
+	if isDark == m.isDark {
+		return
+	}
+	m.isDark = isDark
+	m.styles = newStyles(isDark)
+}
+
+// useThemeNotifications records that the terminal supports DEC mode 2031 and
+// will push theme changes, which makes the background color poll redundant.
+// Once this is set, themeTickMsg stops rescheduling itself.
+func (m *Model) useThemeNotifications() {
+	m.themePushed = true
 }
 
 // clearMessages clears error and info messages
