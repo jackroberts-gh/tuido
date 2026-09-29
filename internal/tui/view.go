@@ -7,7 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/jackroberts-gh/tuido/internal/model"
+	"github.com/jackroberts-gh/tuido/v2/internal/model"
 )
 
 const (

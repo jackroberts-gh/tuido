@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jackroberts-gh/tuido/internal/model"
+	"github.com/jackroberts-gh/tuido/v2/internal/model"
 )
 
 func TestSaveAndLoad(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/jackroberts-gh/tuido/internal/config"
-	"github.com/jackroberts-gh/tuido/internal/model"
+	"github.com/jackroberts-gh/tuido/v2/internal/config"
+	"github.com/jackroberts-gh/tuido/v2/internal/model"
 )
 
 // Storage handles reading and writing tasks to disk

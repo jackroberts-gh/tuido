@@ -5,8 +5,8 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/jackroberts-gh/tuido/internal/storage"
-	"github.com/jackroberts-gh/tuido/internal/tui"
+	"github.com/jackroberts-gh/tuido/v2/internal/storage"
+	"github.com/jackroberts-gh/tuido/v2/internal/tui"
 )
 
 func main() {

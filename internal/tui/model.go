@@ -7,8 +7,8 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/jackroberts-gh/tuido/internal/model"
-	"github.com/jackroberts-gh/tuido/internal/storage"
+	"github.com/jackroberts-gh/tuido/v2/internal/model"
+	"github.com/jackroberts-gh/tuido/v2/internal/storage"
 )
 
 const (

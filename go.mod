@@ -1,4 +1,4 @@
-module github.com/jackroberts-gh/tuido
+module github.com/jackroberts-gh/tuido/v2
 
 go 1.25.1
 
@@ -26,3 +26,5 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+retract v2.0.0 // Published without v2 module path

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackroberts-gh/tuido/internal/model"
+	"github.com/jackroberts-gh/tuido/v2/internal/model"
 )
 
 func TestApplySortCriteriaPriority(t *testing.T) {

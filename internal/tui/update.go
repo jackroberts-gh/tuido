@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/jackroberts-gh/tuido/internal/model"
+	"github.com/jackroberts-gh/tuido/v2/internal/model"
 )
 
 // Update handles messages and updates the model
