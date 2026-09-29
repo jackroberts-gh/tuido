@@ -142,68 +142,13 @@ func (m Model) handleListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.lastKey = ""
 
-	case "space":
-		// Cycle through status: not started -> in-progress -> completed -> not started
-		task := m.getCurrentTask()
-		if task != nil {
-			wasCompleted := task.Completed
+	case "right", "l":
+		// Step status forward, stopping at completed
+		return m.stepCurrentTask(true)
 
-			// Before cycling, find the next task in the list (for cursor movement when completing)
-			var nextTaskID string
-			if !wasCompleted && task.InProgress && m.showCompleted {
-				// We're about to complete a task (in-progress -> completed)
-				// Find the next uncompleted task
-				visibleTasksBefore := m.getVisibleTasks()
-				for i := m.cursor + 1; i < len(visibleTasksBefore); i++ {
-					if !visibleTasksBefore[i].Completed {
-						nextTaskID = visibleTasksBefore[i].ID
-						break
-					}
-				}
-			}
-
-			m.taskList.CycleStatus(task.ID)
-
-			// Check if task just became completed
-			taskAfter := m.getCurrentTask()
-			isNowCompleted := taskAfter != nil && taskAfter.Completed && !wasCompleted
-
-			visibleTasks := m.getVisibleTasks()
-			maxCursor := len(visibleTasks) - 1
-
-			if isNowCompleted && m.showCompleted {
-				// Task just completed - move cursor to the next uncompleted task
-				if nextTaskID != "" {
-					// Find where the next task ended up after re-sorting
-					for i, t := range visibleTasks {
-						if t.ID == nextTaskID {
-							m.cursor = i
-							m.lastKey = ""
-							return m, m.scheduleSave()
-						}
-					}
-				}
-				// If no next task was found, go to first uncompleted task
-				for i, t := range visibleTasks {
-					if !t.Completed {
-						m.cursor = i
-						m.lastKey = ""
-						return m, m.scheduleSave()
-					}
-				}
-				// If no uncompleted tasks, go to end
-				m.cursor = maxCursor
-			} else {
-				// Ensure cursor stays in bounds
-				if m.cursor > maxCursor && maxCursor >= 0 {
-					m.cursor = maxCursor
-				}
-			}
-
-			m.lastKey = ""
-			return m, m.scheduleSave()
-		}
-		m.lastKey = ""
+	case "left", "h":
+		// Step status back, stopping at not started ("undo" progress)
+		return m.stepCurrentTask(false)
 
 	case "a":
 		// Enter add mode
@@ -292,6 +237,55 @@ func (m Model) handleListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// stepCurrentTask moves the selected task one step through its status, forward
+// when advance is true and back otherwise. Neither direction wraps, so the ends
+// of the progression are stable: pressing right on a completed task or left on
+// a not-started task does nothing.
+//
+// The cursor follows the task rather than moving on to the next one (as the
+// forward cycle does), because stepping is used to adjust a specific task - the
+// task itself may shift position if completing or uncompleting re-sorts it.
+func (m Model) stepCurrentTask(advance bool) (tea.Model, tea.Cmd) {
+	task := m.getCurrentTask()
+	if task == nil {
+		m.lastKey = ""
+		return m, nil
+	}
+
+	taskID := task.ID
+	var changed bool
+	if advance {
+		changed = m.taskList.AdvanceStatus(taskID)
+	} else {
+		changed = m.taskList.RegressStatus(taskID)
+	}
+	m.lastKey = ""
+	if !changed {
+		// Already at the end of the progression - nothing to save.
+		return m, nil
+	}
+
+	visibleTasks := m.getVisibleTasks()
+	maxCursor := len(visibleTasks) - 1
+
+	// Follow the task to its new position, if it is still visible.
+	found := false
+	for i, t := range visibleTasks {
+		if t.ID == taskID {
+			m.cursor = i
+			found = true
+			break
+		}
+	}
+	// Filtered out (completed while completed tasks are hidden) - keep the
+	// cursor in range.
+	if !found && m.cursor > maxCursor && maxCursor >= 0 {
+		m.cursor = maxCursor
+	}
+
+	return m, m.scheduleSave()
 }
 
 // handleAddMode handles keyboard input in add task mode

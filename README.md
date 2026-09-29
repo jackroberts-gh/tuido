@@ -26,7 +26,8 @@ go build
 
 Run `tuido` to launch the interactive interface. Tasks are stored in `~/.tuido/tasks.json`.
 
-Colors adapt to your system theme. Restart the app if you switch between light/dark mode.
+Colors adapt to your system theme, and follow it live - switch between light and dark mode
+while Tuido is running and the palette updates to match, no restart needed.
 
 ## Keyboard Shortcuts
 
@@ -34,8 +35,14 @@ Colors adapt to your system theme. Restart the app if you switch between light/d
 - `↑`/`k` - Move up
 - `↓`/`j` - Move down
 
+**Task status**
+
+Each task moves through three states: todo, in-progress, then done.
+
+- `→`/`l` - Advance status (todo to in-progress to done)
+- `←`/`h` - Undo status (done to in-progress to todo)
+
 **Tasks**
-- `space` - Toggle completion
 - `a` - Add task
 - `e` - Edit task
 - `d` - Delete task

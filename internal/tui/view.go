@@ -85,9 +85,10 @@ func (m Model) renderList() string {
 	// Footer with shortcuts - main actions
 	b.WriteString("\n")
 	footer1 := m.buildFooter([]footerItem{
+		{"↑↓", "navigate"},
+		{"←→", "status"},
 		{"a", "add"},
 		{"e", "edit"},
-		{"space", "cycle status"},
 		{"d", "delete"},
 		{"sp", "sort priority"},
 		{"sd", "sort date"},
@@ -589,9 +590,9 @@ func (m Model) renderHelp() string {
 		key  string
 		desc string
 	}{
-		{"↑ / k", "Move cursor up"},
-		{"↓ / j", "Move cursor down"},
-		{"space", "Cycle status (→ in-progress → done → todo)"},
+		{"↑↓ / kj", "Navigate tasks"},
+		{"→ / l", "Advance status (todo to in-progress to done)"},
+		{"← / h", "Undo status (done to in-progress to todo)"},
 		{"a", "Add new task"},
 		{"e", "Edit selected task"},
 		{"d", "Delete selected task"},
