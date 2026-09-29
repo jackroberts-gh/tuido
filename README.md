@@ -7,7 +7,7 @@ Tuido (_pronounced to-do_) is a simple, minimalist TUI designed to manage a loca
 ### Via Go
 
 ```bash
-go install github.com/jackroberts-gh/tuido@latest
+go install github.com/jackroberts-gh/tuido/v2@latest
 ```
 
 ### Via GitHub Releases
