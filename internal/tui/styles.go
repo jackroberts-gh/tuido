@@ -6,60 +6,60 @@ import (
 
 // Adaptive color palette - works in both light and dark mode
 var (
-	// Primary colors
+	// Primary colors - Deeper royal purple for crisp contrast on light backdrops
 	primary = lipgloss.AdaptiveColor{
-		Light: "#7C3AED", // Lighter purple for light mode
+		Light: "#5B21B6", // Deep Violet/Purple (WCAG AA compliant)
 		Dark:  "#F0ABFC", // Subtle pink for dark mode
 	}
 
-	// Accent colors
+	// Accent colors - Deeper indigo/navy blue instead of cyan for high legibility
 	accent = lipgloss.AdaptiveColor{
-		Light: "#0891B2", // Darker cyan for light mode
+		Light: "#234ab6", // Deep Indigo/Blue
 		Dark:  "#22D3EE", // Lighter cyan for dark mode
 	}
 
 	// Status colors
 	success = lipgloss.AdaptiveColor{
-		Light: "#059669", // Darker green for light mode
+		Light: "#047857", // Deep Emerald
 		Dark:  "#10B981", // Lighter green for dark mode
 	}
 	danger = lipgloss.AdaptiveColor{
-		Light: "#DC2626", // Darker red for light mode
+		Light: "#B91C1C", // Deep Red
 		Dark:  "#EF4444", // Lighter red for dark mode
 	}
 
 	// Priority colors
 	priorityHigh = lipgloss.AdaptiveColor{
-		Light: "#DC2626", // Darker red for light mode
-		Dark:  "#F87171", // Lighter red for dark mode
+		Light: "#B91C1C", // Deep Red
+		Dark:  "#F87171",
 	}
 	priorityMedium = lipgloss.AdaptiveColor{
-		Light: "#D97706", // Darker yellow for light mode
-		Dark:  "#FBBF24", // Lighter yellow for dark mode
+		Light: "#B45309", // Deep Amber/Brown-Orange for readability
+		Dark:  "#FBBF24",
 	}
 	priorityLow = lipgloss.AdaptiveColor{
-		Light: "#059669", // Darker green for light mode
-		Dark:  "#34D399", // Lighter green for dark mode
+		Light: "#047857", // Deep Green
+		Dark:  "#34D399",
 	}
 
 	// Text colors
 	text = lipgloss.AdaptiveColor{
-		Light: "#000000", // Black text for light mode
-		Dark:  "#E5E7EB", // Light text for dark mode
+		Light: "#0F172A", // Slate Black/Dark Navy for primary text
+		Dark:  "#E5E7EB",
 	}
 	textMuted = lipgloss.AdaptiveColor{
-		Light: "#374151", // Darker gray for light mode
-		Dark:  "#9CA3AF", // Light gray for dark mode
+		Light: "#334155", // Slate Gray
+		Dark:  "#9CA3AF",
 	}
 	textDim = lipgloss.AdaptiveColor{
-		Light: "#6B7280", // Medium gray for light mode
-		Dark:  "#6B7280", // Darker gray for dark mode
+		Light: "#475569", // Darker Slate Gray (high contrast for light mode strikethrough)
+		Dark:  "#9CA3AF", // Light Gray for dark mode
 	}
 
 	// Border colors
 	border = lipgloss.AdaptiveColor{
-		Light: "#6B7280", // Dark gray border for light mode
-		Dark:  "#6B7280", // Dark gray border for dark mode
+		Light: "#94A3B8", // Slate border
+		Dark:  "#6B7280",
 	}
 )
 
