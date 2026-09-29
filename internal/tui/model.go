@@ -4,16 +4,36 @@ import (
 	"sort"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/jackroberts-gh/tuido/internal/model"
 	"github.com/jackroberts-gh/tuido/internal/storage"
 )
 
-const saveDebounceDuration = 500 * time.Millisecond
+const (
+	saveDebounceDuration = 500 * time.Millisecond
+	// themePollInterval is how often the terminal is re-queried for its
+	// background color, so the palette follows light/dark mode switches.
+	themePollInterval = time.Second
+)
 
 // saveMsg is sent when the debounced save timer expires
 type saveMsg struct{}
+
+// themeTickMsg drives the background color polling loop
+type themeTickMsg time.Time
+
+// pollTheme re-queries the terminal background color and schedules the next poll
+func pollTheme() tea.Cmd {
+	return tea.Batch(tea.RequestBackgroundColor, themeTick())
+}
+
+// themeTick schedules the next theme poll
+func themeTick() tea.Cmd {
+	return tea.Tick(themePollInterval, func(t time.Time) tea.Msg {
+		return themeTickMsg(t)
+	})
+}
 
 // viewMode represents the current view/mode of the application
 type viewMode int
@@ -52,6 +72,8 @@ type Model struct {
 	lastKey       string        // Last key pressed (for key sequences like "sd", "sp")
 	spinner       spinner.Model // Spinner for in-progress tasks
 	savePending   bool          // Whether a save is scheduled but not yet executed
+	styles        styles        // Styles for the active (light/dark) terminal theme
+	isDark        bool          // Whether the terminal background is dark
 	// Delete confirmation
 	deleteTaskID string // ID of task to delete (when in modeDelete)
 	// Add/Edit task form fields
@@ -79,12 +101,15 @@ func NewModel(taskList *model.TaskList, storage *storage.Storage) Model {
 		showCompleted: true,
 		message:       "",
 		spinner:       s,
+		// Assume a dark background until the terminal tells us otherwise.
+		styles: newStyles(true),
+		isDark: true,
 	}
 }
 
 // Init initializes the model (required by BubbleTea)
 func (m Model) Init() tea.Cmd {
-	return m.spinner.Tick
+	return tea.Batch(m.spinner.Tick, pollTheme())
 }
 
 // StartInAddMode configures the model to start in add task mode

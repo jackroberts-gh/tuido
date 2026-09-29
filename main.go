@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/jackroberts-gh/tuido/internal/storage"
 	"github.com/jackroberts-gh/tuido/internal/tui"
 )
@@ -32,8 +32,8 @@ func main() {
 		m = m.StartInAddMode()
 	}
 
-	// Run TUI with alternate screen buffer
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	// Run TUI (the alternate screen buffer is declared in Model.View)
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)

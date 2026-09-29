@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
 
@@ -22,7 +22,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.performSave()
 		return m, nil
 
-	case tea.KeyMsg:
+	case themeTickMsg:
+		// Re-query the terminal background color, then schedule the next poll
+		return m, pollTheme()
+
+	case tea.BackgroundColorMsg:
+		// Rebuild the palette only when the light/dark mode actually changed
+		if isDark := msg.IsDark(); isDark != m.isDark {
+			m.isDark = isDark
+			m.styles = newStyles(isDark)
+		}
+		return m, nil
+
+	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 
 	default:
@@ -34,7 +46,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyPress routes key presses to mode-specific handlers
-func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Global quit keys
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
@@ -55,7 +67,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleListMode handles keyboard input in list view mode
-func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.clearMessages()
 
 	visibleTasks := m.getVisibleTasks()
@@ -94,7 +106,7 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.lastKey = ""
 
-	case " ":
+	case "space":
 		// Cycle through status: not started -> in-progress -> completed -> not started
 		task := m.getCurrentTask()
 		if task != nil {
@@ -247,7 +259,7 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleAddMode handles keyboard input in add task mode
-func (m Model) handleAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.addField {
 	case 0:
 		// Task input field
@@ -263,7 +275,7 @@ func (m Model) handleAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleAddTaskInput handles task input in add mode
-func (m Model) handleAddTaskInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddTaskInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
@@ -294,15 +306,14 @@ func (m Model) handleAddTaskInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		if len(msg.String()) == 1 {
-			m.input += msg.String()
-		}
+		// Text holds the actual characters typed (empty for non-text keys)
+		m.input += msg.Text
 	}
 	return m, nil
 }
 
 // handleAddPrioritySelect handles priority selection in add mode
-func (m Model) handleAddPrioritySelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddPrioritySelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
@@ -352,7 +363,7 @@ func (m Model) handleAddPrioritySelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleAddDueSelect handles due date selection in add mode
-func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddDueSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
@@ -502,7 +513,7 @@ func (m Model) handleHelpMode() (tea.Model, tea.Cmd) {
 }
 
 // handleDeleteMode handles keyboard input in delete confirmation mode
-func (m Model) handleDeleteMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleDeleteMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		// Confirm deletion
