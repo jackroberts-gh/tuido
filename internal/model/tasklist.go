@@ -101,6 +101,59 @@ func (tl *TaskList) CycleStatus(id string) bool {
 	return false
 }
 
+// AdvanceStatus moves a task one step forward through
+// not started -> in-progress -> completed, stopping at completed. Unlike
+// CycleStatus it does not wrap, so it is safe to bind to a directional key.
+// It reports whether the status actually changed.
+func (tl *TaskList) AdvanceStatus(id string) bool {
+	for i := range tl.Tasks {
+		if tl.Tasks[i].ID == id {
+			switch {
+			case tl.Tasks[i].Completed:
+				// Already at the end
+				return false
+			case tl.Tasks[i].InProgress:
+				// In-progress -> Completed
+				tl.Tasks[i].InProgress = false
+				tl.Tasks[i].Completed = true
+				now := time.Now()
+				tl.Tasks[i].CompletedAt = &now
+			default:
+				// Not started -> In-progress
+				tl.Tasks[i].InProgress = true
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// RegressStatus moves a task one step backward through
+// completed -> in-progress -> not started, stopping at not started. Like
+// AdvanceStatus it does not wrap, so it is safe to bind to a directional key.
+// It reports whether the status actually changed.
+func (tl *TaskList) RegressStatus(id string) bool {
+	for i := range tl.Tasks {
+		if tl.Tasks[i].ID == id {
+			switch {
+			case tl.Tasks[i].Completed:
+				// Completed -> In-progress
+				tl.Tasks[i].Completed = false
+				tl.Tasks[i].CompletedAt = nil
+				tl.Tasks[i].InProgress = true
+			case tl.Tasks[i].InProgress:
+				// In-progress -> Not started
+				tl.Tasks[i].InProgress = false
+			default:
+				// Already at the start
+				return false
+			}
+			return true
+		}
+	}
+	return false
+}
+
 // UpdatePriority updates the priority of a task by ID
 func (tl *TaskList) UpdatePriority(id string, priority Priority) bool {
 	for i := range tl.Tasks {

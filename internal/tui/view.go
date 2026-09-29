@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
 
@@ -15,19 +16,25 @@ const (
 )
 
 // View renders the current view based on the mode
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	var content string
 	switch m.mode {
 	case modeList:
-		return m.renderList()
+		content = m.renderList()
 	case modeAdd:
-		return m.renderAddTask()
+		content = m.renderAddTask()
 	case modeHelp:
-		return m.renderHelp()
+		content = m.renderHelp()
 	case modeDelete:
-		return m.renderDeleteConfirmation()
+		content = m.renderDeleteConfirmation()
 	default:
-		return "Unknown mode"
+		content = "Unknown mode"
 	}
+
+	// AltScreen replaces the v1 tea.WithAltScreen program option
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }
 
 // renderList renders the main task list view
@@ -35,7 +42,7 @@ func (m Model) renderList() string {
 	var b strings.Builder
 
 	// Task list with responsive width
-	listStyle := taskListStyle
+	listStyle := m.styles.taskListStyle
 	if m.width > 0 {
 		listStyle = listStyle.Width(m.width - 6)
 	}
@@ -45,6 +52,7 @@ func (m Model) renderList() string {
 
 	// Render table header
 	taskContent.WriteString(m.renderTableHeader())
+	taskContent.WriteString("\n")
 	taskContent.WriteString(m.renderHeaderSeparator())
 
 	// Render tasks as table rows
@@ -52,10 +60,10 @@ func (m Model) renderList() string {
 		// Show hint when no tasks
 		taskContent.WriteString("\n")
 		hintText := "Hit a to add a new task"
-		hintStyle := lipgloss.NewStyle().
-			Foreground(textDim).
+		emptyHintStyle := lipgloss.NewStyle().
+			Foreground(m.styles.textDim).
 			PaddingLeft(1)
-		taskContent.WriteString(hintStyle.Render("  " + hintText))
+		taskContent.WriteString(emptyHintStyle.Render("  " + hintText))
 	} else {
 		for i, task := range visibleTasks {
 			taskContent.WriteString("\n")
@@ -67,25 +75,26 @@ func (m Model) renderList() string {
 	// Messages
 	if m.err != nil {
 		b.WriteString("\n")
-		b.WriteString(errorStyle.Render(fmt.Sprintf(" ✗ %v ", m.err)))
+		b.WriteString(m.styles.errorStyle.Render(fmt.Sprintf(" ✗ %v ", m.err)))
 	}
 	if m.message != "" {
 		b.WriteString("\n")
-		b.WriteString(successStyle.Render(fmt.Sprintf(" ✓ %s ", m.message)))
+		b.WriteString(m.styles.successStyle.Render(fmt.Sprintf(" ✓ %s ", m.message)))
 	}
 
 	// Footer with shortcuts - main actions
 	b.WriteString("\n")
 	footer1 := m.buildFooter([]footerItem{
+		{"↑↓", "navigate"},
+		{"←→", "status"},
 		{"a", "add"},
 		{"e", "edit"},
-		{"space", "cycle status"},
 		{"d", "delete"},
 		{"sp", "sort priority"},
 		{"sd", "sort date"},
 		{"t", "filter"},
 	})
-	footerStyleWithWidth := footerStyle
+	footerStyleWithWidth := m.styles.footerStyle
 	if m.width > 0 {
 		footerStyleWithWidth = footerStyleWithWidth.Width(m.width - 4)
 	}
@@ -97,7 +106,7 @@ func (m Model) renderList() string {
 		{"?", "help"},
 		{"q", "quit"},
 	})
-	footerStyle2 := footerStyle.BorderTop(false).PaddingTop(0).MarginTop(0)
+	footerStyle2 := m.styles.footerStyle.BorderTop(false).PaddingTop(0).MarginTop(0)
 	if m.width > 0 {
 		footerStyle2 = footerStyle2.Width(m.width - 4)
 	}
@@ -114,9 +123,9 @@ type footerItem struct {
 func (m Model) buildFooter(items []footerItem) string {
 	parts := make([]string, len(items))
 	for i, item := range items {
-		parts[i] = fmt.Sprintf("%s %s", footerKeyStyle.Render(item.key), footerDescStyle.Render(item.desc))
+		parts[i] = fmt.Sprintf("%s %s", m.styles.footerKeyStyle.Render(item.key), m.styles.footerDescStyle.Render(item.desc))
 	}
-	return strings.Join(parts, footerSepStyle.Render(" • "))
+	return strings.Join(parts, m.styles.footerSepStyle.Render(" • "))
 }
 
 // renderTableHeader renders the table header
@@ -136,7 +145,7 @@ func (m Model) renderTableHeader() string {
 
 	// Use muted text color for the entire header (so Due Date isn't in accent color)
 	headerStyle := lipgloss.NewStyle().
-		Foreground(textMuted).
+		Foreground(m.styles.textMuted).
 		Bold(true).
 		PaddingLeft(1)
 
@@ -149,22 +158,49 @@ func (m Model) renderHeaderSeparator() string {
 	taskWidth := m.getTaskColumnWidth()
 	totalWidth := 2 + taskWidth + 2 + priorityColumnWidth + 2 + dueDateColumnWidth // spacing included
 
+	// A solid run of dashes has no break points, so the renderer can only wrap
+	// it by pushing the whole run onto the next line - which would show up as a
+	// stray line under the header. It needs the PaddingLeft(1) column below
+	// plus two columns of slack to stay on one line, so cap it at that. This
+	// only binds on very narrow terminals, where getTaskColumnWidth clamps the
+	// task column to its 20-column minimum.
+	if maxDashes := m.innerWidth() - 3; totalWidth > maxDashes {
+		totalWidth = maxDashes
+	}
+	if totalWidth < 1 {
+		return ""
+	}
+
 	separator := strings.Repeat("─", totalWidth)
 
 	separatorStyle := lipgloss.NewStyle().
-		Foreground(border).
+		Foreground(m.styles.border).
 		PaddingLeft(1)
 
 	return separatorStyle.Render(separator)
 }
 
+// taskColumnReserved is the space a row needs around the task column.
+//
+// The task list sits in a bordered box of Width(m.width-6) with Padding(0, 1),
+// so its usable text area is innerWidth() = m.width-8. Two shapes bound how
+// wide the task column can be:
+//
+//	selected row: padding(1) + cursor(1) + space(1) + checkbox(3) + space(1) +
+//	  text(taskWidth-4) + gap(2) + priority(10) + gap(2) + due(12) +
+//	  padding(1) = taskWidth + 30  <=  m.width-8  =>  taskWidth <= m.width-38
+//
+//	separator: an unbreakable run of dashes, which needs two more columns of
+//	  slack than breakable text (see renderHeaderSeparator), so it costs one
+//	  column more than the row above  =>  taskWidth <= m.width-39
+//
+// The separator is the tighter of the two, so reserve 39.
+const taskColumnReserved = 39
+
 // getTaskColumnWidth calculates the width for the task column based on terminal width
 func (m Model) getTaskColumnWidth() int {
 	if m.width > 0 {
-		// Reserve space for borders, padding, priority and due date columns
-		// Border + padding = ~10, Priority = 10, Due Date = 12, spacing = 4
-		reserved := 36
-		taskWidth := m.width - reserved
+		taskWidth := m.width - taskColumnReserved
 		if taskWidth < 20 {
 			taskWidth = 20 // Minimum task column width
 		}
@@ -174,30 +210,36 @@ func (m Model) getTaskColumnWidth() int {
 	return 40 // Default width
 }
 
+// innerWidth returns the usable text width inside the task list box, which is
+// Width(m.width-6) less its horizontal padding of 2.
+func (m Model) innerWidth() int {
+	return m.width - 8
+}
+
 // renderTask renders a single task as a table row
 func (m Model) renderTask(task model.Task, selected bool) string {
 	// Cursor indicator
 	cursor := " "
 	if selected {
-		cursor = cursorStyle.Render("▶")
+		cursor = m.styles.cursorStyle.Render("▶")
 	}
 
 	// Checkbox
 	var checkbox string
 	if task.Completed {
-		checkbox = checkboxCompletedStyle.Render("[x]")
+		checkbox = m.styles.checkboxCompletedStyle.Render("[x]")
 	} else if task.InProgress {
 		// Show spinner for in-progress tasks
 		spinnerView := m.spinner.View()
 		if selected {
-			checkbox = checkboxSelectedStyle.Render("[" + spinnerView + "]")
+			checkbox = m.styles.checkboxSelectedStyle.Render("[" + spinnerView + "]")
 		} else {
-			checkbox = checkboxStyle.Render("[" + spinnerView + "]")
+			checkbox = m.styles.checkboxStyle.Render("[" + spinnerView + "]")
 		}
 	} else if selected {
-		checkbox = checkboxSelectedStyle.Render("[ ]")
+		checkbox = m.styles.checkboxSelectedStyle.Render("[ ]")
 	} else {
-		checkbox = checkboxStyle.Render("[ ]")
+		checkbox = m.styles.checkboxStyle.Render("[ ]")
 	}
 
 	// Task text (truncate if too long)
@@ -214,27 +256,36 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 	taskDisplayWidth := taskWidth - 4 // Account for checkbox
 	availableSpace := taskDisplayWidth - len(inProgressIndicator)
 
-	// Truncate task text if needed
+	// Truncate task text if needed. On very narrow terminals availableSpace can
+	// be tiny (or negative), so only append the ellipsis when there is room for
+	// it and never slice past the start of the string.
 	if len(taskText) > availableSpace {
-		taskText = taskText[:availableSpace-3] + "..."
+		switch {
+		case availableSpace <= 0:
+			taskText = ""
+		case availableSpace <= 3:
+			taskText = taskText[:availableSpace]
+		default:
+			taskText = taskText[:availableSpace-3] + "..."
+		}
 	}
 
 	var styledTaskText string
 	if task.Completed {
 		// Pad the combined text
 		combined := fmt.Sprintf("%-*s", taskDisplayWidth, taskText+inProgressIndicator)
-		styledTaskText = completedTaskStyle.Render(combined)
+		styledTaskText = m.styles.completedTaskStyle.Render(combined)
 	} else {
 		var baseStyle lipgloss.Style
 		if selected {
-			baseStyle = checkboxSelectedStyle
+			baseStyle = m.styles.checkboxSelectedStyle
 		} else {
-			baseStyle = taskTextStyle
+			baseStyle = m.styles.taskTextStyle
 		}
 
 		if inProgressIndicator != "" {
 			// Render task text, then indicator separately (not bold, italic, muted)
-			indicatorStyle := lipgloss.NewStyle().Italic(true).Foreground(textMuted)
+			indicatorStyle := lipgloss.NewStyle().Italic(true).Foreground(m.styles.textMuted)
 			// Add padding after the indicator
 			totalLen := len(taskText) + len(inProgressIndicator)
 			padding := strings.Repeat(" ", taskDisplayWidth-totalLen)
@@ -273,9 +324,9 @@ func (m Model) renderTask(task model.Task, selected bool) string {
 
 	// Apply padding
 	if selected {
-		return selectedTaskStyle.Render(line)
+		return m.styles.selectedTaskStyle.Render(line)
 	}
-	return taskStyle.Render(line)
+	return m.styles.taskStyle.Render(line)
 }
 
 // formatPriority formats the priority with appropriate styling (text is already padded)
@@ -284,18 +335,18 @@ func (m Model) formatPriority(priority model.Priority, paddedText string, comple
 
 	switch priority {
 	case model.PriorityLow:
-		style = priorityLowStyle
+		style = m.styles.priorityLowStyle
 	case model.PriorityMedium:
-		style = priorityMediumStyle
+		style = m.styles.priorityMediumStyle
 	case model.PriorityHigh:
-		style = priorityHighStyle
+		style = m.styles.priorityHighStyle
 	default:
 		style = lipgloss.NewStyle()
 	}
 
 	// Apply strikethrough if completed
 	if completed {
-		style = style.Strikethrough(true).Foreground(textDim)
+		style = style.Strikethrough(true).Foreground(m.styles.textDim)
 	}
 
 	return style.Render(paddedText)
@@ -342,13 +393,13 @@ func (m Model) formatDueDateStyled(task *model.Task, paddedText string, complete
 
 	if completed {
 		// If completed, apply strikethrough and dim styling regardless of due date
-		style = lipgloss.NewStyle().Foreground(textDim).Strikethrough(true)
+		style = lipgloss.NewStyle().Foreground(m.styles.textDim).Strikethrough(true)
 	} else if task.DueDate == nil {
 		// No due date - use dim style
-		style = lipgloss.NewStyle().Foreground(textDim)
+		style = lipgloss.NewStyle().Foreground(m.styles.textDim)
 	} else {
 		// Has a due date but not completed - use plain text (no color)
-		style = lipgloss.NewStyle().Foreground(text)
+		style = lipgloss.NewStyle().Foreground(m.styles.text)
 	}
 
 	return style.Render(paddedText)
@@ -362,9 +413,9 @@ func (m Model) renderAddTask() string {
 	formContent := strings.Builder{}
 
 	// Question 1: Task
-	questionLabel := checkboxSelectedStyle.Render("Task")
+	questionLabel := m.styles.checkboxSelectedStyle.Render("Task")
 	if m.addField != 0 {
-		questionLabel = checkboxStyle.Render("Task")
+		questionLabel = m.styles.checkboxStyle.Render("Task")
 	}
 	formContent.WriteString(" ")
 	formContent.WriteString(questionLabel)
@@ -376,14 +427,14 @@ func (m Model) renderAddTask() string {
 		formContent.WriteString("█")
 	} else {
 		// Completed
-		formContent.WriteString(taskTextStyle.Render(m.input))
+		formContent.WriteString(m.styles.taskTextStyle.Render(m.input))
 	}
 	formContent.WriteString("\n\n")
 
 	// Question 2: Priority
-	questionLabel = checkboxSelectedStyle.Render("Priority")
+	questionLabel = m.styles.checkboxSelectedStyle.Render("Priority")
 	if m.addField != 1 {
-		questionLabel = checkboxStyle.Render("Priority")
+		questionLabel = m.styles.checkboxStyle.Render("Priority")
 	}
 	formContent.WriteString(" ")
 	formContent.WriteString(questionLabel)
@@ -407,9 +458,9 @@ func (m Model) renderAddTask() string {
 	formContent.WriteString("\n\n")
 
 	// Question 3: Due date
-	questionLabel = checkboxSelectedStyle.Render("Due date")
+	questionLabel = m.styles.checkboxSelectedStyle.Render("Due date")
 	if m.addField != 2 {
-		questionLabel = checkboxStyle.Render("Due date")
+		questionLabel = m.styles.checkboxStyle.Render("Due date")
 	}
 	formContent.WriteString(" ")
 	formContent.WriteString(questionLabel)
@@ -430,7 +481,7 @@ func (m Model) renderAddTask() string {
 	}
 
 	// Apply box style
-	boxStyle := taskListStyle
+	boxStyle := m.styles.taskListStyle
 	if m.width > 0 {
 		boxStyle = boxStyle.Width(m.width - 6)
 	}
@@ -462,7 +513,7 @@ func (m Model) renderAddTask() string {
 	}
 
 	footer := m.buildFooter(footerItems)
-	footerStyleWithWidth := footerStyle
+	footerStyleWithWidth := m.styles.footerStyle
 	if m.width > 0 {
 		footerStyleWithWidth = footerStyleWithWidth.Width(m.width - 4)
 	}
@@ -475,11 +526,11 @@ func (m Model) renderAddTask() string {
 func (m Model) formatPriorityAnswer(priority model.Priority) string {
 	switch priority {
 	case model.PriorityLow:
-		return priorityLowStyle.Render(priority.String())
+		return m.styles.priorityLowStyle.Render(priority.String())
 	case model.PriorityMedium:
-		return priorityMediumStyle.Render(priority.String())
+		return m.styles.priorityMediumStyle.Render(priority.String())
 	case model.PriorityHigh:
-		return priorityHighStyle.Render(priority.String())
+		return m.styles.priorityHighStyle.Render(priority.String())
 	}
 	return priority.String()
 }
@@ -491,17 +542,17 @@ func (m Model) renderPriorityList(index int) string {
 
 	cursor := " "
 	if m.addCursor == index {
-		cursor = cursorStyle.Render("▶")
+		cursor = m.styles.cursorStyle.Render("▶")
 	}
 
 	var style func(...string) string
 	switch priority {
 	case model.PriorityLow:
-		style = priorityLowStyle.Render
+		style = m.styles.priorityLowStyle.Render
 	case model.PriorityMedium:
-		style = priorityMediumStyle.Render
+		style = m.styles.priorityMediumStyle.Render
 	case model.PriorityHigh:
-		style = priorityHighStyle.Render
+		style = m.styles.priorityHighStyle.Render
 	}
 
 	return fmt.Sprintf("  %s %s", cursor, style(priority.String()))
@@ -514,15 +565,15 @@ func (m Model) renderDueList(index int) string {
 
 	cursor := " "
 	if m.addCursor == index {
-		cursor = cursorStyle.Render("▶")
+		cursor = m.styles.cursorStyle.Render("▶")
 	}
 
 	// Highlight selected option in purple
 	var styledLabel string
 	if m.addCursor == index {
-		styledLabel = checkboxSelectedStyle.Render(label)
+		styledLabel = m.styles.checkboxSelectedStyle.Render(label)
 	} else {
-		styledLabel = dueDateStyle.Render(label)
+		styledLabel = m.styles.dueDateStyle.Render(label)
 	}
 
 	return fmt.Sprintf("  %s %s", cursor, styledLabel)
@@ -532,16 +583,16 @@ func (m Model) renderDueList(index int) string {
 func (m Model) renderHelp() string {
 	var help strings.Builder
 
-	help.WriteString(helpHeaderStyle.Render("⌨  Keyboard Shortcuts"))
+	help.WriteString(m.styles.helpHeaderStyle.Render("⌨  Keyboard Shortcuts"))
 	help.WriteString("\n\n")
 
 	shortcuts := []struct {
 		key  string
 		desc string
 	}{
-		{"↑ / k", "Move cursor up"},
-		{"↓ / j", "Move cursor down"},
-		{"space", "Cycle status (→ in-progress → done → todo)"},
+		{"↑↓ / kj", "Navigate tasks"},
+		{"→ / l", "Advance status (todo to in-progress to done)"},
+		{"← / h", "Undo status (done to in-progress to todo)"},
 		{"a", "Add new task"},
 		{"e", "Edit selected task"},
 		{"d", "Delete selected task"},
@@ -556,16 +607,16 @@ func (m Model) renderHelp() string {
 		// Pad the key before styling to ensure alignment
 		paddedKey := fmt.Sprintf("%-12s", shortcut.key)
 		line := fmt.Sprintf("%s  %s",
-			helpKeyStyle.Render(paddedKey),
-			helpDescStyle.Render(shortcut.desc))
+			m.styles.helpKeyStyle.Render(paddedKey),
+			m.styles.helpDescStyle.Render(shortcut.desc))
 		help.WriteString(line)
 		help.WriteString("\n")
 	}
 
 	help.WriteString("\n")
-	help.WriteString(hintStyle.Render("Press any key to return"))
+	help.WriteString(m.styles.hintStyle.Render("Press any key to return"))
 
-	boxStyle := dialogBoxStyle
+	boxStyle := m.styles.dialogBoxStyle
 	if m.width > 0 {
 		boxStyle = boxStyle.MaxWidth(m.width - 4)
 	}
@@ -588,13 +639,13 @@ func (m Model) renderDeleteConfirmation() string {
 	dialog.WriteString("\n\n")
 
 	// Options
-	yesOption := fmt.Sprintf("%s %s", footerKeyStyle.Render("Y"), footerDescStyle.Render("Yes"))
-	noOption := fmt.Sprintf("%s %s", footerKeyStyle.Render("N"), footerDescStyle.Render("No"))
+	yesOption := fmt.Sprintf("%s %s", m.styles.footerKeyStyle.Render("Y"), m.styles.footerDescStyle.Render("Yes"))
+	noOption := fmt.Sprintf("%s %s", m.styles.footerKeyStyle.Render("N"), m.styles.footerDescStyle.Render("No"))
 	options := fmt.Sprintf("%s  %s", yesOption, noOption)
 	dialog.WriteString(options)
 
 	// Apply dialog box style
-	boxStyle := dialogBoxStyle.Padding(1, 2)
+	boxStyle := m.styles.dialogBoxStyle.Padding(1, 2)
 	if m.width > 0 {
 		boxStyle = boxStyle.MaxWidth(40)
 	}

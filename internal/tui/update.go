@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jackroberts-gh/tuido/internal/model"
 )
 
@@ -22,7 +24,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.performSave()
 		return m, nil
 
-	case tea.KeyMsg:
+	case themeTickMsg:
+		// Fallback path for terminals without DEC mode 2031. If the terminal
+		// has since told us it supports notifications, drop the poll loop here
+		// and rely on the pushed events instead.
+		if m.themePushed {
+			return m, nil
+		}
+		return m, pollTheme()
+
+	case tea.ModeReportMsg:
+		// Reply to our mode 2031 query. A terminal that recognises the mode
+		// will push theme changes, so the poll can be switched off. Terminals
+		// without support answer "not recognized" (or never answer at all) and
+		// keep polling.
+		if dm, ok := msg.Mode.(ansi.DECMode); ok && int(dm) == themeNotificationMode {
+			if !msg.Value.IsNotRecognized() {
+				m.useThemeNotifications()
+			}
+		}
+		return m, nil
+
+	case tea.BackgroundColorMsg:
+		// Reply to our own background color query (the poll, or startup)
+		m.applyTheme(msg.IsDark())
+		return m, nil
+
+	case uv.DarkColorSchemeEvent:
+		// Pushed by the terminal the moment it switched to a dark theme.
+		// Receiving this at all proves notifications work, so stop polling
+		// even if the mode report never arrived.
+		m.useThemeNotifications()
+		m.applyTheme(true)
+		return m, nil
+
+	case uv.LightColorSchemeEvent:
+		// Pushed by the terminal the moment it switched to a light theme
+		m.useThemeNotifications()
+		m.applyTheme(false)
+		return m, nil
+
+	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 
 	default:
@@ -34,10 +76,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyPress routes key presses to mode-specific handlers
-func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Global quit keys
 	if msg.String() == "ctrl+c" {
-		return m, tea.Quit
+		return m, quitCmd()
 	}
 
 	switch m.mode {
@@ -54,8 +96,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// quitCmd disables theme change notifications before quitting, so the terminal
+// is not left with mode 2031 enabled.
+func quitCmd() tea.Cmd {
+	return tea.Sequence(stopThemeNotificationsCmd(), tea.Quit)
+}
+
 // handleListMode handles keyboard input in list view mode
-func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.clearMessages()
 
 	visibleTasks := m.getVisibleTasks()
@@ -80,7 +128,7 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch key {
 	case "q":
-		return m, tea.Quit
+		return m, quitCmd()
 
 	case "up", "k":
 		if m.cursor > 0 {
@@ -94,68 +142,13 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.lastKey = ""
 
-	case " ":
-		// Cycle through status: not started -> in-progress -> completed -> not started
-		task := m.getCurrentTask()
-		if task != nil {
-			wasCompleted := task.Completed
+	case "right", "l":
+		// Step status forward, stopping at completed
+		return m.stepCurrentTask(true)
 
-			// Before cycling, find the next task in the list (for cursor movement when completing)
-			var nextTaskID string
-			if !wasCompleted && task.InProgress && m.showCompleted {
-				// We're about to complete a task (in-progress -> completed)
-				// Find the next uncompleted task
-				visibleTasksBefore := m.getVisibleTasks()
-				for i := m.cursor + 1; i < len(visibleTasksBefore); i++ {
-					if !visibleTasksBefore[i].Completed {
-						nextTaskID = visibleTasksBefore[i].ID
-						break
-					}
-				}
-			}
-
-			m.taskList.CycleStatus(task.ID)
-
-			// Check if task just became completed
-			taskAfter := m.getCurrentTask()
-			isNowCompleted := taskAfter != nil && taskAfter.Completed && !wasCompleted
-
-			visibleTasks := m.getVisibleTasks()
-			maxCursor := len(visibleTasks) - 1
-
-			if isNowCompleted && m.showCompleted {
-				// Task just completed - move cursor to the next uncompleted task
-				if nextTaskID != "" {
-					// Find where the next task ended up after re-sorting
-					for i, t := range visibleTasks {
-						if t.ID == nextTaskID {
-							m.cursor = i
-							m.lastKey = ""
-							return m, m.scheduleSave()
-						}
-					}
-				}
-				// If no next task was found, go to first uncompleted task
-				for i, t := range visibleTasks {
-					if !t.Completed {
-						m.cursor = i
-						m.lastKey = ""
-						return m, m.scheduleSave()
-					}
-				}
-				// If no uncompleted tasks, go to end
-				m.cursor = maxCursor
-			} else {
-				// Ensure cursor stays in bounds
-				if m.cursor > maxCursor && maxCursor >= 0 {
-					m.cursor = maxCursor
-				}
-			}
-
-			m.lastKey = ""
-			return m, m.scheduleSave()
-		}
-		m.lastKey = ""
+	case "left", "h":
+		// Step status back, stopping at not started ("undo" progress)
+		return m.stepCurrentTask(false)
 
 	case "a":
 		// Enter add mode
@@ -246,8 +239,57 @@ func (m Model) handleListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// stepCurrentTask moves the selected task one step through its status, forward
+// when advance is true and back otherwise. Neither direction wraps, so the ends
+// of the progression are stable: pressing right on a completed task or left on
+// a not-started task does nothing.
+//
+// The cursor follows the task rather than moving on to the next one (as the
+// forward cycle does), because stepping is used to adjust a specific task - the
+// task itself may shift position if completing or uncompleting re-sorts it.
+func (m Model) stepCurrentTask(advance bool) (tea.Model, tea.Cmd) {
+	task := m.getCurrentTask()
+	if task == nil {
+		m.lastKey = ""
+		return m, nil
+	}
+
+	taskID := task.ID
+	var changed bool
+	if advance {
+		changed = m.taskList.AdvanceStatus(taskID)
+	} else {
+		changed = m.taskList.RegressStatus(taskID)
+	}
+	m.lastKey = ""
+	if !changed {
+		// Already at the end of the progression - nothing to save.
+		return m, nil
+	}
+
+	visibleTasks := m.getVisibleTasks()
+	maxCursor := len(visibleTasks) - 1
+
+	// Follow the task to its new position, if it is still visible.
+	found := false
+	for i, t := range visibleTasks {
+		if t.ID == taskID {
+			m.cursor = i
+			found = true
+			break
+		}
+	}
+	// Filtered out (completed while completed tasks are hidden) - keep the
+	// cursor in range.
+	if !found && m.cursor > maxCursor && maxCursor >= 0 {
+		m.cursor = maxCursor
+	}
+
+	return m, m.scheduleSave()
+}
+
 // handleAddMode handles keyboard input in add task mode
-func (m Model) handleAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.addField {
 	case 0:
 		// Task input field
@@ -263,7 +305,7 @@ func (m Model) handleAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleAddTaskInput handles task input in add mode
-func (m Model) handleAddTaskInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddTaskInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
@@ -294,15 +336,14 @@ func (m Model) handleAddTaskInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		if len(msg.String()) == 1 {
-			m.input += msg.String()
-		}
+		// Text holds the actual characters typed (empty for non-text keys)
+		m.input += msg.Text
 	}
 	return m, nil
 }
 
 // handleAddPrioritySelect handles priority selection in add mode
-func (m Model) handleAddPrioritySelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddPrioritySelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
@@ -352,7 +393,7 @@ func (m Model) handleAddPrioritySelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleAddDueSelect handles due date selection in add mode
-func (m Model) handleAddDueSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleAddDueSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
@@ -502,7 +543,7 @@ func (m Model) handleHelpMode() (tea.Model, tea.Cmd) {
 }
 
 // handleDeleteMode handles keyboard input in delete confirmation mode
-func (m Model) handleDeleteMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleDeleteMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		// Confirm deletion
